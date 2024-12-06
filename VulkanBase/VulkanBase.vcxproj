@@ -111,7 +111,7 @@
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalLibraryDirectories>$(ProjectDir)dependencies\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>shell32.lib;kernel32.lib;gdi32.lib;user32.lib;glfw3.lib;vulkan-1.lib</AdditionalDependencies>
+      <AdditionalDependencies>shaderc_combinedd.lib;shell32.lib;kernel32.lib;gdi32.lib;user32.lib;glfw3.lib;vulkan-1.lib</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -131,7 +131,7 @@
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalLibraryDirectories>$(ProjectDir)dependencies\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>shell32.lib;kernel32.lib;gdi32.lib;user32.lib;glfw3.lib;vulkan-1.lib</AdditionalDependencies>
+      <AdditionalDependencies>shaderc_combinedd.lib;shell32.lib;kernel32.lib;gdi32.lib;user32.lib;glfw3.lib;vulkan-1.lib</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -147,7 +147,7 @@
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalLibraryDirectories>$(ProjectDir)dependencies\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>shell32.lib;kernel32.lib;gdi32.lib;user32.lib;glfw3.lib;vulkan-1.lib</AdditionalDependencies>
+      <AdditionalDependencies>shaderc_combinedd.lib;shell32.lib;kernel32.lib;gdi32.lib;user32.lib;glfw3.lib;vulkan-1.lib</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -167,7 +167,7 @@
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalLibraryDirectories>$(ProjectDir)dependencies\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>shell32.lib;kernel32.lib;gdi32.lib;user32.lib;glfw3.lib;vulkan-1.lib</AdditionalDependencies>
+      <AdditionalDependencies>shaderc_combinedd.lib;shell32.lib;kernel32.lib;gdi32.lib;user32.lib;glfw3.lib;vulkan-1.lib</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>

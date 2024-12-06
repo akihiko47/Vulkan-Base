@@ -1,5 +1,6 @@
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
+#include <shaderc/shaderc.hpp>
 
 #include <iostream>
 #include <stdexcept>
@@ -48,6 +49,14 @@ struct SwapChainSupportDetails {
 	VkSurfaceCapabilitiesKHR capabilities;
 	std::vector<VkSurfaceFormatKHR> formats;
 	std::vector<VkPresentModeKHR> presentModes;
+};
+
+// Need this struct to store information about shaders to compile them
+struct ShaderCompilationInfo {
+	const char *fileName;
+	shaderc_shader_kind kind;
+	std::vector<char> source;
+	shaderc::CompileOptions options;
 };
 
 class HelloTriangleApplication {
@@ -662,11 +671,29 @@ private:
 	}
 
 	void createGraphicsPipeline() {
-		std::vector<char> vertShaderCode = readFile("shaders/vert.spv");
-		std::vector<char> fragShaderCode = readFile("shaders/frag.spv");
+		ShaderCompilationInfo vertShaderInfo{};
+		vertShaderInfo.fileName = "shaders/shader.vert";
+		vertShaderInfo.source = readFile(vertShaderInfo.fileName);
+		vertShaderInfo.kind = shaderc_vertex_shader;
+		vertShaderInfo.options.SetOptimizationLevel(shaderc_optimization_level_performance);
 
-		VkShaderModule vertShaderModule = createShaderModule(vertShaderCode);
-		VkShaderModule fragShaderModule = createShaderModule(fragShaderCode);
+		ShaderCompilationInfo fragShaderInfo{};
+		fragShaderInfo.fileName = "shaders/shader.frag";
+		fragShaderInfo.source = readFile(fragShaderInfo.fileName);
+		fragShaderInfo.kind = shaderc_fragment_shader;
+		fragShaderInfo.options.SetOptimizationLevel(shaderc_optimization_level_performance);
+
+		preprocessShader(vertShaderInfo);
+		preprocessShader(fragShaderInfo);
+
+		compileShaderToAssembly(vertShaderInfo);
+		compileShaderToAssembly(fragShaderInfo);
+
+		compileShaderToSPIRV(vertShaderInfo);
+		compileShaderToSPIRV(fragShaderInfo);
+
+		VkShaderModule vertShaderModule = createShaderModule(vertShaderInfo.source);
+		VkShaderModule fragShaderModule = createShaderModule(fragShaderInfo.source);
 
 		VkPipelineShaderStageCreateInfo vertShaderStageInfo{};
 		vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -865,6 +892,78 @@ private:
 		file.close();
 
 		return buffer;
+	}
+
+	void preprocessShader(ShaderCompilationInfo &info) {
+		std::cout << "preprocessing shader " << info.fileName << "\n";
+
+		shaderc::Compiler compiler;
+
+		// preprocessed info is stored in result
+		shaderc::PreprocessedSourceCompilationResult result = compiler.PreprocessGlsl(info.source.data(), info.source.size(), info.kind, info.fileName, info.options);
+		if (result.GetCompilationStatus() != shaderc_compilation_status_success) {
+			std::cout << result.GetErrorMessage() << "\n\n";
+			throw std::runtime_error("failed to preprocess shader!");
+		}
+
+		// copy from result to info struct
+		const char *src = result.cbegin();
+		size_t newSize = result.end() - src;
+		info.source.resize(newSize);
+		memcpy(info.source.data(), src, newSize);
+
+		// print preprocessed code
+		/*std::string code = {info.source.data(), info.source.data() + info.source.size()};
+		std::cout << "preprocessed code:\n";
+		std::cout << code << "\n";*/
+	}
+
+	void compileShaderToAssembly(ShaderCompilationInfo &info) {
+		std::cout << "compiling shader " << info.fileName << " to assembly\n";
+
+		shaderc::Compiler compiler;
+
+		// preprocessed info is stored in result
+		shaderc::AssemblyCompilationResult result = compiler.CompileGlslToSpvAssembly(info.source.data(), info.source.size(), info.kind, info.fileName, info.options);
+		if (result.GetCompilationStatus() != shaderc_compilation_status_success) {
+			std::cout << result.GetErrorMessage() << "\n\n";
+			throw std::runtime_error("failed to compile shader!");
+		}
+
+		// copy from result to info struct
+		const char *src = result.cbegin();
+		size_t newSize = result.end() - src;
+		info.source.resize(newSize);
+		memcpy(info.source.data(), src, newSize);
+
+		// print compiled code
+		/*std::string code = {info.source.data(), info.source.data() + info.source.size()};
+		std::cout << "compiled assembly code:\n";
+		std::cout << code << "\n";*/
+	}
+
+	void compileShaderToSPIRV(ShaderCompilationInfo &info) {
+		std::cout << "compiling shader " << info.fileName << " to SPIR-V\n";
+
+		shaderc::Compiler compiler;
+
+		// preprocessed info is stored in result
+		shaderc::SpvCompilationResult result = compiler.AssembleToSpv(info.source.data(), info.source.size(), info.options);
+		if (result.GetCompilationStatus() != shaderc_compilation_status_success) {
+			std::cout << result.GetErrorMessage() << "\n\n";
+			throw std::runtime_error("failed to compile shader!");
+		}
+
+		// copy from result to info struct
+		const char *src = reinterpret_cast<const char*>(result.cbegin());
+		size_t newSize = reinterpret_cast<const char*>(result.end()) - src;
+		info.source.resize(newSize);
+		memcpy(info.source.data(), src, newSize);
+
+		// print compiled code
+		/*std::string code = {info.source.data(), info.source.data() + info.source.size()};
+		std::cout << "compiled SPIR-V code:\n";
+		std::cout << code << "\n";*/
 	}
 
 	VkShaderModule createShaderModule(const std::vector<char> &code) {
