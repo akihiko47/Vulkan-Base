@@ -3,6 +3,9 @@
 #include <shaderc/shaderc.hpp>
 #include <glm/glm.hpp>
 
+#define VMA_IMPLEMENTATION
+#include <VMA/vk_mem_alloc.h>
+
 #include <iostream>
 #include <stdexcept>
 #include <cstdlib>
@@ -125,6 +128,7 @@ private:
 		createSurface();
 		pickPhysicalDevice();
 		createLogicalDevice();
+		createMemoryAllocator();
 		createSwapChain();
 		createImageViews();
 		createRenderPass();
@@ -148,7 +152,8 @@ private:
 	void cleanup() {
 		cleanupSwapChain();
 
-		vkDestroyBuffer(device, vertexBuffer, nullptr);
+		vmaDestroyBuffer(allocator, vertexBuffer, vertexAllocation);
+		//vkDestroyBuffer(device, vertexBuffer, nullptr);
 		vkFreeMemory(device, vertexBufferMemory, nullptr);
 
 		vkDestroyPipeline(device, graphicsPipeline, nullptr);
@@ -164,6 +169,8 @@ private:
 
 		vkDestroyCommandPool(device, graphicsCommandPool, nullptr);  // destroys cammand buffers as well
 		vkDestroyCommandPool(device, transferCommandPool, nullptr);  // destroys cammand buffers as well
+
+		vmaDestroyAllocator(allocator);
 
 		vkDestroyDevice(device, nullptr);
 		
@@ -438,6 +445,16 @@ private:
 		}
 
 		return indices;
+	}
+
+	void createMemoryAllocator() {
+		VmaAllocatorCreateInfo createInfo{};
+		createInfo.instance = instance;
+		createInfo.physicalDevice = physicalDevice;
+		createInfo.device = device;
+		createInfo.vulkanApiVersion = VK_API_VERSION_1_3;
+
+		vmaCreateAllocator(&createInfo, &allocator);
 	}
 
 	// This function returns swap chain settings that are supported by physical device and surface
@@ -1267,35 +1284,60 @@ private:
 		VkDeviceSize bufferSize = sizeof(vertices[0]) * vertices.size();
 
 		// staging buffer that is visible to cpu
+		//VkBuffer stagingBuffer;
+		//VkDeviceMemory stagingBufferMemory;
+		//createBuffer(bufferSize,
+		//			 VK_BUFFER_USAGE_TRANSFER_SRC_BIT,  // can move from this buffer
+		//			 VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+		//			 stagingBuffer,
+		//			 stagingBufferMemory
+		//);
+
+		VkBufferCreateInfo stagingBufferInfo{};
+		stagingBufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+		stagingBufferInfo.size = bufferSize;
+		stagingBufferInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+
+		VmaAllocationCreateInfo stagingAllocInfo{};
+		stagingAllocInfo.usage = VMA_MEMORY_USAGE_AUTO;
+		stagingAllocInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
+
 		VkBuffer stagingBuffer;
-		VkDeviceMemory stagingBufferMemory;
-		createBuffer(bufferSize,
-					 VK_BUFFER_USAGE_TRANSFER_SRC_BIT,  // can move from this buffer
-					 VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-					 stagingBuffer,
-					 stagingBufferMemory
-		);
+		VmaAllocation stagingAllocation;
+		vmaCreateBuffer(allocator, &stagingBufferInfo, &stagingAllocInfo, &stagingBuffer, &stagingAllocation, nullptr);
 
 		// map gpu memory to cpu memory (can access gpu memory like normal)
-		void *data;
+		/*void *data;
 		vkMapMemory(device, stagingBufferMemory, 0, bufferSize, 0, &data);
 			memcpy(data, vertices.data(), (size_t)bufferSize);
-		vkUnmapMemory(device, stagingBufferMemory);
+		vkUnmapMemory(device, stagingBufferMemory);*/
+
+		vmaCopyMemoryToAllocation(allocator, vertices.data(), stagingAllocation, 0, bufferSize);
 
 		// vertex buffer that is not visible to cpu (faster local gpu memory)
-		createBuffer(bufferSize,
-					 VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,  // can move to this buffer and it is vertex buffer
-					 VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-					 vertexBuffer,
-					 vertexBufferMemory
-		);
+		//createBuffer(bufferSize,
+		//			 VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,  // can move to this buffer and it is vertex buffer
+		//			 VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+		//			 vertexBuffer,
+		//			 vertexBufferMemory
+		//);
+		VkBufferCreateInfo vertexBufferInfo{};
+		vertexBufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+		vertexBufferInfo.size = bufferSize;
+		vertexBufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+
+		VmaAllocationCreateInfo vertexAllocInfo{};
+		vertexAllocInfo.usage = VMA_MEMORY_USAGE_AUTO;
+
+		vmaCreateBuffer(allocator, &vertexBufferInfo, &vertexAllocInfo, &vertexBuffer, &vertexAllocation, nullptr);
 
 		// move data from staging buffer to high performance vertex buffer
 		copyBuffer(stagingBuffer, vertexBuffer, bufferSize);
 
 		// free staging buffer
-		vkDestroyBuffer(device, stagingBuffer, nullptr);
-		vkFreeMemory(device, stagingBufferMemory, nullptr);
+		//vkDestroyBuffer(device, stagingBuffer, nullptr);
+		//vkFreeMemory(device, stagingBufferMemory, nullptr);
+		vmaDestroyBuffer(allocator, stagingBuffer, stagingAllocation);
 	}
 
 	uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) {
@@ -1406,6 +1448,8 @@ private:
 	VkQueue presentQueue = VK_NULL_HANDLE;
 	VkQueue transferQueue = VK_NULL_HANDLE;
 
+	VmaAllocator allocator;
+
 	VkSwapchainKHR swapChain;
 	VkFormat swapChainImageFormat;
 	VkExtent2D swapChainExtent;
@@ -1428,6 +1472,7 @@ private:
 	std::vector<VkFence> inFlightFences;
 
 	VkBuffer vertexBuffer;
+	VmaAllocation vertexAllocation;
 	VkDeviceMemory vertexBufferMemory;
 
 	uint32_t currentFrame = 0;
