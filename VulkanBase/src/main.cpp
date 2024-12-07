@@ -21,7 +21,8 @@ const int MAX_FRAMES_IN_FLIGHT = 2;
 
 // All standart layers are packed in this one
 const std::vector<const char*> validationLayers = {
-	"VK_LAYER_KHRONOS_validation"
+	"VK_LAYER_KHRONOS_validation",
+	"VK_LAYER_LUNARG_monitor"
 };
 
 // Need this extension to create swapchain
@@ -40,9 +41,10 @@ const std::vector<const char*> deviceExtensions = {
 struct QueueFamilyIndices {
 	std::optional<uint32_t> graphicsFamily;
 	std::optional<uint32_t> presentFamily;
+	std::optional<uint32_t> transferFamily;
 
 	bool isComplete() {
-		return graphicsFamily.has_value() && presentFamily.has_value();
+		return graphicsFamily.has_value() && presentFamily.has_value() && transferFamily.has_value();
 	}
 };
 
@@ -96,9 +98,13 @@ struct Vertex {
 
 // Current scene description
 const std::vector<Vertex> vertices = {
-	{{0.0f, -0.5f}, {1.0f, 0.0f, 0.0f}},
-	{{0.5f, 0.5f}, {0.0f, 1.0f, 0.0f}},
-	{{-0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}}
+	{{-0.4f, -0.4f}, {1.0f, 0.0f, 0.0f}},
+	{{ 0.4f, -0.4f}, {0.0f, 1.0f, 1.0f}},
+	{{ 0.4f,  0.4f}, {0.0f, 0.0f, 1.0f}},
+
+	{{-0.4f, -0.4f}, {1.0f, 0.0f, 0.0f}},
+	{{ 0.4f,  0.4f}, {0.0f, 0.0f, 1.0f}},
+	{{-0.4f,  0.4f}, {0.0f, 1.0f, 1.0f}}
 };
 
 class HelloTriangleApplication {
@@ -156,7 +162,8 @@ private:
 			vkDestroyFence(device, inFlightFences[i], nullptr);
 		}
 
-		vkDestroyCommandPool(device, commandPool, nullptr);  // destroys cammand buffers as well
+		vkDestroyCommandPool(device, graphicsCommandPool, nullptr);  // destroys cammand buffers as well
+		vkDestroyCommandPool(device, transferCommandPool, nullptr);  // destroys cammand buffers as well
 
 		vkDestroyDevice(device, nullptr);
 		
@@ -299,7 +306,7 @@ private:
 		QueueFamilyIndices indices = findQueueFamilies(physicalDevice);
 
 		std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
-		std::set<uint32_t> uniqueQueueFamilies = {indices.graphicsFamily.value(), indices.presentFamily.value()};
+		std::set<uint32_t> uniqueQueueFamilies = {indices.graphicsFamily.value(), indices.presentFamily.value(), indices.transferFamily.value()};
 
 		float queuePriority = 1.0f;
 		for (uint32_t queueFamily : uniqueQueueFamilies) {
@@ -342,6 +349,7 @@ private:
 
 		vkGetDeviceQueue(device, indices.graphicsFamily.value(), 0, &graphicsQueue);
 		vkGetDeviceQueue(device, indices.presentFamily.value(), 0, &presentQueue);
+		vkGetDeviceQueue(device, indices.transferFamily.value(), 0, &transferQueue);
 	}
 
 	bool isDeviceSuitable(VkPhysicalDevice device) {
@@ -412,6 +420,10 @@ private:
 		for (int i = 0; i < queueFamilies.size(); i++) {
 			if (queueFamilies[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) {
 				indices.graphicsFamily = i;
+			}
+
+			if (queueFamilies[i].queueFlags & VK_QUEUE_TRANSFER_BIT & ~VK_QUEUE_GRAPHICS_BIT) {
+				indices.transferFamily = i;
 			}
 
 			VkBool32 presentSupport = false;
@@ -486,8 +498,6 @@ private:
 			createInfo.pQueueFamilyIndices = queueFamilyIndices;
 		} else {  // most of hardware
 			createInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-			createInfo.queueFamilyIndexCount = 0; // Optional
-			createInfo.pQueueFamilyIndices = nullptr; // Optional
 		}
 
 		// specify that we dont need any transformations (rotation etc.)
@@ -535,7 +545,8 @@ private:
 			}
 		}
 		std::cout << "unable to find needed present mode, swap chain will use regular queue\n\n";
-		return VK_PRESENT_MODE_FIFO_KHR;
+		//return VK_PRESENT_MODE_FIFO_KHR;    // vsync ON
+		return VK_PRESENT_MODE_IMMEDIATE_KHR; // vsync OFF
 	}
 
 	// setup swap chain images resolution
@@ -1032,27 +1043,49 @@ private:
 	void createCommandPool() {
 		QueueFamilyIndices queueFamilyIndices = findQueueFamilies(physicalDevice);
 
-		VkCommandPoolCreateInfo poolInfo{};
-		poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-		poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;  // allow buffers to be reset individually
-		poolInfo.queueFamilyIndex = queueFamilyIndices.graphicsFamily.value();
+		VkCommandPoolCreateInfo graphicsPoolInfo{};
+		graphicsPoolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+		graphicsPoolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;  // allow buffers to be reset individually
+		graphicsPoolInfo.queueFamilyIndex = queueFamilyIndices.graphicsFamily.value();
 
-		if (vkCreateCommandPool(device, &poolInfo, nullptr, &commandPool) != VK_SUCCESS) {
-			throw std::runtime_error("failed to create command pool!");
+		if (vkCreateCommandPool(device, &graphicsPoolInfo, nullptr, &graphicsCommandPool) != VK_SUCCESS) {
+			throw std::runtime_error("failed to create graphics command pool!");
+		}
+
+		VkCommandPoolCreateInfo transferPoolInfo{};
+		transferPoolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+		transferPoolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;  // allow buffers to be reset individually
+		transferPoolInfo.queueFamilyIndex = queueFamilyIndices.transferFamily.value();
+
+		if (vkCreateCommandPool(device, &transferPoolInfo, nullptr, &transferCommandPool) != VK_SUCCESS) {
+			throw std::runtime_error("failed to create transfer command pool!");
 		}
 	}
 
 	void createCommandBuffers() {
-		commandBuffers.resize(MAX_FRAMES_IN_FLIGHT);
+		graphicsCommandBuffers.resize(MAX_FRAMES_IN_FLIGHT);
 
-		VkCommandBufferAllocateInfo allocInfo{};
-		allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-		allocInfo.commandPool = commandPool;
-		allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-		allocInfo.commandBufferCount = (uint32_t)commandBuffers.size();
+		VkCommandBufferAllocateInfo graphicsAllocInfo{};
+		graphicsAllocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+		graphicsAllocInfo.commandPool = graphicsCommandPool;
+		graphicsAllocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+		graphicsAllocInfo.commandBufferCount = (uint32_t)graphicsCommandBuffers.size();
 
-		if (vkAllocateCommandBuffers(device, &allocInfo, commandBuffers.data()) != VK_SUCCESS) {
-			throw std::runtime_error("failed to allocate command buffers!");
+		if (vkAllocateCommandBuffers(device, &graphicsAllocInfo, graphicsCommandBuffers.data()) != VK_SUCCESS) {
+			throw std::runtime_error("failed to allocate graphics command buffers!");
+		}
+
+
+		transferCommandBuffers.resize(MAX_FRAMES_IN_FLIGHT);
+
+		VkCommandBufferAllocateInfo transferAllocInfo{};
+		transferAllocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+		transferAllocInfo.commandPool = transferCommandPool;
+		transferAllocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+		transferAllocInfo.commandBufferCount = (uint32_t)transferCommandBuffers.size();
+
+		if (vkAllocateCommandBuffers(device, &transferAllocInfo, transferCommandBuffers.data()) != VK_SUCCESS) {
+			throw std::runtime_error("failed to allocate transfer command buffers!");
 		}
 	}
 
@@ -1069,7 +1102,7 @@ private:
 		}
 
 		// start render pass
-		VkClearValue clearColor = {{{0.0f, 0.0f, 0.0f, 1.0f}}};
+		VkClearValue clearColor = {{{0.0f, 0.0f, 0.05f, 1.0f}}};
 		VkRenderPassBeginInfo renderPassInfo{};
 		renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
 		renderPassInfo.renderPass = renderPass;
@@ -1147,11 +1180,22 @@ private:
 	}
 
 	void createVertexBuffer() {
+		QueueFamilyIndices indices = findQueueFamilies(physicalDevice);
+		uint32_t queueFamilyIndices[] = {indices.graphicsFamily.value(), indices.transferFamily.value()};
+
 		VkBufferCreateInfo bufferInfo{};
 		bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 		bufferInfo.size = sizeof(vertices[0]) * vertices.size();
 		bufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
-		bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;  // owned by one queue family or multiple at the same time
+
+		if (indices.graphicsFamily != indices.transferFamily) {
+			bufferInfo.sharingMode = VK_SHARING_MODE_CONCURRENT;  // owned by one queue family or multiple at the same time
+			bufferInfo.queueFamilyIndexCount = 2;
+			bufferInfo.pQueueFamilyIndices = queueFamilyIndices;
+		} else {
+			bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;  // owned by one queue family or multiple at the same time
+		}
+		
 
 		if (vkCreateBuffer(device, &bufferInfo, nullptr, &vertexBuffer) != VK_SUCCESS) {
 			throw std::runtime_error("failed to create vertex buffer!");
@@ -1233,8 +1277,8 @@ private:
 		vkResetFences(device, 1, &inFlightFences[currentFrame]);
 
 		// record commands to command buffer
-		vkResetCommandBuffer(commandBuffers[currentFrame], 0);
-		recordCommandBuffer(commandBuffers[currentFrame], imageIndex);
+		vkResetCommandBuffer(graphicsCommandBuffers[currentFrame], 0);
+		recordCommandBuffer(graphicsCommandBuffers[currentFrame], imageIndex);
 
 		// submit command buffer
 		VkSemaphore waitSemaphores[] = {imageAvailableSemaphores[currentFrame]};
@@ -1246,7 +1290,7 @@ private:
 		submitInfo.pWaitSemaphores = waitSemaphores;
 		submitInfo.pWaitDstStageMask = waitStages;
 		submitInfo.commandBufferCount = 1;
-		submitInfo.pCommandBuffers = &commandBuffers[currentFrame];
+		submitInfo.pCommandBuffers = &graphicsCommandBuffers[currentFrame];
 		submitInfo.signalSemaphoreCount = 1;
 		submitInfo.pSignalSemaphores = signalSemaphores;
 
@@ -1287,6 +1331,7 @@ private:
 
 	VkQueue graphicsQueue = VK_NULL_HANDLE;
 	VkQueue presentQueue = VK_NULL_HANDLE;
+	VkQueue transferQueue = VK_NULL_HANDLE;
 
 	VkSwapchainKHR swapChain;
 	VkFormat swapChainImageFormat;
@@ -1300,8 +1345,10 @@ private:
 
 	std::vector<VkFramebuffer> swapChainFramebuffers;
 
-	VkCommandPool commandPool;
-	std::vector<VkCommandBuffer> commandBuffers;
+	VkCommandPool graphicsCommandPool;
+	VkCommandPool transferCommandPool;
+	std::vector<VkCommandBuffer> graphicsCommandBuffers;
+	std::vector<VkCommandBuffer> transferCommandBuffers;
 
 	std::vector<VkSemaphore> imageAvailableSemaphores;
 	std::vector<VkSemaphore> renderFinishedSemaphores;
