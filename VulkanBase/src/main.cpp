@@ -1236,6 +1236,37 @@ private:
 		vkBindBufferMemory(device, buffer, bufferMemory, 0);
 	}
 
+	void createBuffer(VkDeviceSize size,
+					  VkBufferUsageFlags bufferUsage,
+					  VmaMemoryUsage allocationUsage,
+					  VmaAllocationCreateFlags allocationFlags,
+					  VkBuffer &buffer,
+					  VmaAllocation &allocation) {
+		QueueFamilyIndices indices = findQueueFamilies(physicalDevice);
+		uint32_t queueFamilyIndices[] = {indices.graphicsFamily.value(), indices.transferFamily.value()};
+
+		VkBufferCreateInfo bufferInfo{};
+		bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+		bufferInfo.size = size;
+		bufferInfo.usage = bufferUsage;
+
+		if (indices.graphicsFamily != indices.transferFamily) {
+			bufferInfo.sharingMode = VK_SHARING_MODE_CONCURRENT;  // owned by one queue family or multiple at the same time
+			bufferInfo.queueFamilyIndexCount = 2;
+			bufferInfo.pQueueFamilyIndices = queueFamilyIndices;
+		} else {
+			bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;  // owned by one queue family or multiple at the same time
+		}
+
+		VmaAllocationCreateInfo allocInfo{};
+		allocInfo.usage = allocationUsage;
+		allocInfo.flags = allocationFlags;
+
+		if (vmaCreateBuffer(allocator, &bufferInfo, &allocInfo, &buffer, &allocation, nullptr) != VK_SUCCESS) {
+			throw std::runtime_error("failed to create buffer!");
+		}
+	}
+
 	void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size) {
 
 		// create command buffer
@@ -1284,15 +1315,6 @@ private:
 		VkDeviceSize bufferSize = sizeof(vertices[0]) * vertices.size();
 
 		// staging buffer that is visible to cpu
-		//VkBuffer stagingBuffer;
-		//VkDeviceMemory stagingBufferMemory;
-		//createBuffer(bufferSize,
-		//			 VK_BUFFER_USAGE_TRANSFER_SRC_BIT,  // can move from this buffer
-		//			 VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-		//			 stagingBuffer,
-		//			 stagingBufferMemory
-		//);
-
 		VkBufferCreateInfo stagingBufferInfo{};
 		stagingBufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 		stagingBufferInfo.size = bufferSize;
@@ -1304,39 +1326,26 @@ private:
 
 		VkBuffer stagingBuffer;
 		VmaAllocation stagingAllocation;
-		vmaCreateBuffer(allocator, &stagingBufferInfo, &stagingAllocInfo, &stagingBuffer, &stagingAllocation, nullptr);
+		createBuffer(bufferSize,
+					 VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+					 VMA_MEMORY_USAGE_AUTO,
+					 VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT,
+					 stagingBuffer, stagingAllocation);
 
 		// map gpu memory to cpu memory (can access gpu memory like normal)
-		/*void *data;
-		vkMapMemory(device, stagingBufferMemory, 0, bufferSize, 0, &data);
-			memcpy(data, vertices.data(), (size_t)bufferSize);
-		vkUnmapMemory(device, stagingBufferMemory);*/
-
 		vmaCopyMemoryToAllocation(allocator, vertices.data(), stagingAllocation, 0, bufferSize);
 
 		// vertex buffer that is not visible to cpu (faster local gpu memory)
-		//createBuffer(bufferSize,
-		//			 VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,  // can move to this buffer and it is vertex buffer
-		//			 VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-		//			 vertexBuffer,
-		//			 vertexBufferMemory
-		//);
-		VkBufferCreateInfo vertexBufferInfo{};
-		vertexBufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-		vertexBufferInfo.size = bufferSize;
-		vertexBufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-
-		VmaAllocationCreateInfo vertexAllocInfo{};
-		vertexAllocInfo.usage = VMA_MEMORY_USAGE_AUTO;
-
-		vmaCreateBuffer(allocator, &vertexBufferInfo, &vertexAllocInfo, &vertexBuffer, &vertexAllocation, nullptr);
+		createBuffer(bufferSize,
+					 VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+					 VMA_MEMORY_USAGE_AUTO,
+					 0,
+					 vertexBuffer, vertexAllocation);
 
 		// move data from staging buffer to high performance vertex buffer
 		copyBuffer(stagingBuffer, vertexBuffer, bufferSize);
 
 		// free staging buffer
-		//vkDestroyBuffer(device, stagingBuffer, nullptr);
-		//vkFreeMemory(device, stagingBufferMemory, nullptr);
 		vmaDestroyBuffer(allocator, stagingBuffer, stagingAllocation);
 	}
 
