@@ -1,7 +1,10 @@
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 #include <shaderc/shaderc.hpp>
+
+#define GLM_FORCE_RADIANS
 #include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
 
 #define VMA_IMPLEMENTATION
 #include <VMA/vk_mem_alloc.h>
@@ -16,6 +19,7 @@
 #include <limits> 
 #include <algorithm>
 #include <fstream>
+#include <chrono>
 
 const uint32_t WIDTH = 800;
 const uint32_t HEIGHT = 600;
@@ -101,13 +105,21 @@ struct Vertex {
 
 // Current scene description
 const std::vector<Vertex> vertices = {
-	{{-0.4f, -0.4f}, {1.0f, 0.0f, 0.0f}},
-	{{ 0.4f, -0.4f}, {0.0f, 1.0f, 1.0f}},
-	{{ 0.4f,  0.4f}, {0.0f, 0.0f, 1.0f}},
+	{{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}},
+	{{ 0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}},
+	{{ 0.5f,  0.5f}, {0.0f, 0.0f, 1.0f}},
+	{{-0.5f,  0.5f}, {1.0f, 1.0f, 1.0f}}
+};
 
-	{{-0.4f, -0.4f}, {1.0f, 0.0f, 0.0f}},
-	{{ 0.4f,  0.4f}, {0.0f, 0.0f, 1.0f}},
-	{{-0.4f,  0.4f}, {0.0f, 1.0f, 1.0f}}
+const std::vector<uint16_t> indices = {
+	0, 3, 2, 2, 1, 0
+};
+
+// discriptor
+struct UniformBufferObject {
+	glm::mat4 model;
+	glm::mat4 view;
+	glm::mat4 proj;
 };
 
 class HelloTriangleApplication {
@@ -132,10 +144,15 @@ private:
 		createSwapChain();
 		createImageViews();
 		createRenderPass();
+		createDescriptorSetLayout();
 		createGraphicsPipeline();
 		createFrameBuffers();
 		createCommandPool();
 		createVertexBuffer();
+		createIndexBuffer();
+		createUniformBuffers();
+		createDescriptorPool();
+		createDescriptorSets();
 		createCommandBuffers();
 		createSyncObjects();
 	}
@@ -152,9 +169,15 @@ private:
 	void cleanup() {
 		cleanupSwapChain();
 
+		for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+			vmaDestroyBuffer(allocator, uniformBuffers[i], uniformAllocations[i]);
+		}
+
+		vkDestroyDescriptorPool(device, descriptorPool, nullptr);  // destroys descriptor sets as well
+		vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
+
 		vmaDestroyBuffer(allocator, vertexBuffer, vertexAllocation);
-		//vkDestroyBuffer(device, vertexBuffer, nullptr);
-		vkFreeMemory(device, vertexBufferMemory, nullptr);
+		vmaDestroyBuffer(allocator, indexBuffer, indexAllocation);
 
 		vkDestroyPipeline(device, graphicsPipeline, nullptr);
 		vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
@@ -895,10 +918,8 @@ private:
 		// uniform values
 		VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
 		pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-		pipelineLayoutInfo.setLayoutCount = 0; // Optional
-		pipelineLayoutInfo.pSetLayouts = nullptr; // Optional
-		pipelineLayoutInfo.pushConstantRangeCount = 0; // Optional
-		pipelineLayoutInfo.pPushConstantRanges = nullptr; // Optional
+		pipelineLayoutInfo.setLayoutCount = 1;
+		pipelineLayoutInfo.pSetLayouts = &descriptorSetLayout;
 
 		if (vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS) {
 			throw std::runtime_error("failed to create pipeline layout!");
@@ -1139,6 +1160,12 @@ private:
 		VkDeviceSize offsets[] = {0};
 		vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
 
+		// bind descriptor set for this frame
+		vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets.data()[currentFrame], 0, nullptr);
+
+		// bind index buffer
+		vkCmdBindIndexBuffer(commandBuffer, indexBuffer, 0, VK_INDEX_TYPE_UINT16);
+
 		// update viewport
 		VkViewport viewport{};
 		viewport.x = 0.0f;
@@ -1156,7 +1183,7 @@ private:
 		vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
 		// draw
-		vkCmdDraw(commandBuffer, static_cast<uint32_t>(vertices.size()), 1, 0, 0);
+		vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(indices.size()), 1, 0, 0, 0);
 
 		// end render pass
 		vkCmdEndRenderPass(commandBuffer);
@@ -1241,7 +1268,8 @@ private:
 					  VmaMemoryUsage allocationUsage,
 					  VmaAllocationCreateFlags allocationFlags,
 					  VkBuffer &buffer,
-					  VmaAllocation &allocation) {
+					  VmaAllocation &allocation,
+					  VmaAllocationInfo &allocationInfo) {
 		QueueFamilyIndices indices = findQueueFamilies(physicalDevice);
 		uint32_t queueFamilyIndices[] = {indices.graphicsFamily.value(), indices.transferFamily.value()};
 
@@ -1262,7 +1290,7 @@ private:
 		allocInfo.usage = allocationUsage;
 		allocInfo.flags = allocationFlags;
 
-		if (vmaCreateBuffer(allocator, &bufferInfo, &allocInfo, &buffer, &allocation, nullptr) != VK_SUCCESS) {
+		if (vmaCreateBuffer(allocator, &bufferInfo, &allocInfo, &buffer, &allocation, &allocationInfo) != VK_SUCCESS) {
 			throw std::runtime_error("failed to create buffer!");
 		}
 	}
@@ -1315,22 +1343,14 @@ private:
 		VkDeviceSize bufferSize = sizeof(vertices[0]) * vertices.size();
 
 		// staging buffer that is visible to cpu
-		VkBufferCreateInfo stagingBufferInfo{};
-		stagingBufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-		stagingBufferInfo.size = bufferSize;
-		stagingBufferInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
-
-		VmaAllocationCreateInfo stagingAllocInfo{};
-		stagingAllocInfo.usage = VMA_MEMORY_USAGE_AUTO;
-		stagingAllocInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
-
 		VkBuffer stagingBuffer;
 		VmaAllocation stagingAllocation;
+		VmaAllocationInfo stagingAllocationInfo;
 		createBuffer(bufferSize,
 					 VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
 					 VMA_MEMORY_USAGE_AUTO,
 					 VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT,
-					 stagingBuffer, stagingAllocation);
+					 stagingBuffer, stagingAllocation, stagingAllocationInfo);
 
 		// map gpu memory to cpu memory (can access gpu memory like normal)
 		vmaCopyMemoryToAllocation(allocator, vertices.data(), stagingAllocation, 0, bufferSize);
@@ -1340,13 +1360,61 @@ private:
 					 VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
 					 VMA_MEMORY_USAGE_AUTO,
 					 0,
-					 vertexBuffer, vertexAllocation);
+					 vertexBuffer, vertexAllocation, vertexAllocationInfo);
 
 		// move data from staging buffer to high performance vertex buffer
 		copyBuffer(stagingBuffer, vertexBuffer, bufferSize);
 
 		// free staging buffer
 		vmaDestroyBuffer(allocator, stagingBuffer, stagingAllocation);
+	}
+
+	void createIndexBuffer() {
+		VkDeviceSize bufferSize = sizeof(indices[0]) * indices.size();
+
+		// staging buffer that is visible to cpu
+		VkBuffer stagingBuffer;
+		VmaAllocation stagingAllocation;
+		VmaAllocationInfo stagingAllocationInfo;
+		createBuffer(bufferSize,
+					 VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+					 VMA_MEMORY_USAGE_AUTO,
+					 VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT,
+					 stagingBuffer, stagingAllocation, stagingAllocationInfo);
+
+		// map gpu memory to cpu memory (can access gpu memory like normal)
+		vmaCopyMemoryToAllocation(allocator, indices.data(), stagingAllocation, 0, bufferSize);
+
+		// index buffer that is not visible to cpu (faster local gpu memory)
+		createBuffer(bufferSize,
+					 VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+					 VMA_MEMORY_USAGE_AUTO,
+					 0,
+					 indexBuffer, indexAllocation, indexAllocationInfo);
+
+		// move data from staging buffer to high performance index buffer
+		copyBuffer(stagingBuffer, indexBuffer, bufferSize);
+
+		// free staging buffer
+		vmaDestroyBuffer(allocator, stagingBuffer, stagingAllocation);
+	}
+
+	void createUniformBuffers() {
+		VkDeviceSize bufferSize = sizeof(UniformBufferObject);
+
+		uniformBuffers.resize(MAX_FRAMES_IN_FLIGHT);
+		uniformAllocations.resize(MAX_FRAMES_IN_FLIGHT);
+		uniformAllocationInfos.resize(MAX_FRAMES_IN_FLIGHT);
+
+		for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+			createBuffer(bufferSize,
+						 VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+						 VMA_MEMORY_USAGE_AUTO,
+						 VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT,
+						 uniformBuffers[i],
+						 uniformAllocations[i],
+						 uniformAllocationInfos[i]);
+		}
 	}
 
 	uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) {
@@ -1384,6 +1452,90 @@ private:
 		}
 	}
 
+	void createDescriptorSetLayout() {
+		VkDescriptorSetLayoutBinding uboLayoutBinding{};
+		uboLayoutBinding.binding = 0;
+		uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		uboLayoutBinding.descriptorCount = 1;
+		uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+		uboLayoutBinding.pImmutableSamplers = nullptr;
+
+		VkDescriptorSetLayoutCreateInfo layoutInfo{};
+		layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+		layoutInfo.bindingCount = 1;
+		layoutInfo.pBindings = &uboLayoutBinding;
+
+		if (vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &descriptorSetLayout) != VK_SUCCESS) {
+			throw std::runtime_error("failed to create descriptor set layout!");
+		}
+	}
+
+	void createDescriptorPool() {
+		VkDescriptorPoolSize poolSize{};
+		poolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		poolSize.descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
+
+		VkDescriptorPoolCreateInfo poolInfo{};
+		poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+		poolInfo.poolSizeCount = 1;
+		poolInfo.pPoolSizes = &poolSize;
+		poolInfo.maxSets = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
+
+		if (vkCreateDescriptorPool(device, &poolInfo, nullptr, &descriptorPool) != VK_SUCCESS) {
+			throw std::runtime_error("failed to create descriptor pool!");
+		}
+	}
+
+	void createDescriptorSets() {
+		// allocate descriptor sets
+		std::vector<VkDescriptorSetLayout> layouts(MAX_FRAMES_IN_FLIGHT, descriptorSetLayout);
+
+		VkDescriptorSetAllocateInfo allocInfo{};
+		allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+		allocInfo.descriptorPool = descriptorPool;
+		allocInfo.descriptorSetCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
+		allocInfo.pSetLayouts = layouts.data();
+
+		descriptorSets.resize(MAX_FRAMES_IN_FLIGHT);
+		if (vkAllocateDescriptorSets(device, &allocInfo, descriptorSets.data()) != VK_SUCCESS) {
+			throw std::runtime_error("failed to allocate descriptor sets!");
+		}
+
+		// populate sets with data
+		for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+			VkDescriptorBufferInfo bufferInfo{};
+			bufferInfo.buffer = uniformBuffers[i];
+			bufferInfo.offset = 0;
+			bufferInfo.range = sizeof(UniformBufferObject);
+
+			VkWriteDescriptorSet descriptorWrite{};
+			descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+			descriptorWrite.dstSet = descriptorSets[i];
+			descriptorWrite.dstBinding = 0;
+			descriptorWrite.dstArrayElement = 0;
+			descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+			descriptorWrite.descriptorCount = 1;
+			descriptorWrite.pBufferInfo = &bufferInfo;
+
+			vkUpdateDescriptorSets(device, 1, &descriptorWrite, 0, nullptr);
+		}
+	}
+
+	void updateUniformBuffer(uint32_t currentImage) {
+		static auto startTime = std::chrono::high_resolution_clock::now();
+
+		auto currentTime = std::chrono::high_resolution_clock::now();
+		float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
+
+		UniformBufferObject ubo{};
+		ubo.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+		ubo.view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+		ubo.proj = glm::perspective(glm::radians(45.0f), (float)swapChainExtent.width / (float)swapChainExtent.height, 0.1f, 10.0f);
+		ubo.proj[1][1] *= -1;
+
+		memcpy(uniformAllocationInfos[currentImage].pMappedData, &ubo, sizeof(ubo));
+	}
+
 	void drawFrame() {
 		vkWaitForFences(device, 1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX);
 
@@ -1399,6 +1551,9 @@ private:
 
 		// reset fence only if we are submitting work
 		vkResetFences(device, 1, &inFlightFences[currentFrame]);
+
+		// update uniform buffer
+		updateUniformBuffer(currentFrame);
 
 		// record commands to command buffer
 		vkResetCommandBuffer(graphicsCommandBuffers[currentFrame], 0);
@@ -1466,7 +1621,10 @@ private:
 	std::vector<VkImageView> swapChainImageViews;
 
 	VkRenderPass renderPass;
-	VkPipelineLayout pipelineLayout;  // for uniform values
+	VkDescriptorPool descriptorPool;
+	VkDescriptorSetLayout descriptorSetLayout;  // describes descriptor sets
+	std::vector<VkDescriptorSet> descriptorSets;
+	VkPipelineLayout pipelineLayout;  // describes all data that will be passed to shader
 	VkPipeline graphicsPipeline;
 
 	std::vector<VkFramebuffer> swapChainFramebuffers;
@@ -1482,7 +1640,14 @@ private:
 
 	VkBuffer vertexBuffer;
 	VmaAllocation vertexAllocation;
-	VkDeviceMemory vertexBufferMemory;
+	VmaAllocationInfo vertexAllocationInfo;
+	VkBuffer indexBuffer;
+	VmaAllocation indexAllocation;
+	VmaAllocationInfo indexAllocationInfo;
+
+	std::vector<VkBuffer> uniformBuffers;
+	std::vector<VmaAllocation> uniformAllocations;
+	std::vector<VmaAllocationInfo> uniformAllocationInfos;
 
 	uint32_t currentFrame = 0;
 
