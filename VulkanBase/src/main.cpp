@@ -1686,11 +1686,6 @@ private:
 		imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;  // for multisampling
 		imageInfo.flags = 0;
 
-		if (vkCreateImage(device, &imageInfo, nullptr, &textureImage) != VK_SUCCESS) {
-			throw std::runtime_error("failed to create image!");
-		}
-
-		// allocate memory for image
 		VmaAllocationCreateInfo allocInfo{};
 		allocInfo.usage = VMA_MEMORY_USAGE_AUTO;
 		allocInfo.flags = VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT;
