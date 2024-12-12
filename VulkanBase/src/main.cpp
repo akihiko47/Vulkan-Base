@@ -3,8 +3,6 @@
 #include <shaderc/shaderc.hpp>
 
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
-#define GLM_FORCE_RADIANS
-#define GLM_FORCE_DEFAULT_ALIGNED_GENTYPES
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
@@ -258,7 +256,7 @@ private:
 		appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
 		appInfo.pEngineName = "No Engine";
 		appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
-		appInfo.apiVersion = VK_API_VERSION_1_0;
+		appInfo.apiVersion = VK_API_VERSION_1_3;
 		appInfo.pNext = nullptr;
 
 		// === Create instance info === 
@@ -309,7 +307,7 @@ private:
 	void populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT &createInfo) {
 		createInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
 		createInfo.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT |
-									 //VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT |
+									 VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT |
 									 VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
 									 VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
 		createInfo.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
@@ -1202,7 +1200,7 @@ private:
 
 		// start render pass
 		std::array<VkClearValue, 2> clearValues{};  // same as attachments order
-		clearValues[0].color = {{0.0f, 0.0f, 0.0f, 1.0f}};
+		clearValues[0].color = {{0.02f, 0.0f, 0.02f, 1.0f}};
 		clearValues[1].depthStencil = {1.0f, 0};
 
 		VkRenderPassBeginInfo renderPassInfo{};
@@ -1265,6 +1263,7 @@ private:
 			vkDestroyImageView(device, imageView, nullptr);
 		}
 		vkDestroySwapchainKHR(device, swapChain, nullptr);
+		vkDestroyImageView(device, depthImageView, nullptr);
 		vmaDestroyImage(allocator, depthImage, depthImageAllocation);
 	}
 
