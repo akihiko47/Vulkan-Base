@@ -19,11 +19,22 @@ void main() {
     vec4 albedo = texture(texSampler, fragTexCoord);
 
     // light
-    vec3 lightPos = vec3(0.0, 0.0, 1.5);
-    vec3 lightCol = vec3(1.0, 0.95, 0.9)
+    vec3 camPos   = vec3(3.0, 3.0, 3.0);
+    vec3 lightPos = vec3(0.0, 0.0, 0.5);
+    vec3 lightCol = vec3(1.0, 0.9, 0.7) * 0.2;
+
     vec3 L = normalize(lightPos - worldPos);
+    vec3 V = normalize(camPos);
+    vec3 H = normalize(L + V);
     
     float atten = 1.0 / dot(lightPos - worldPos, lightPos - worldPos);
 
-    outColor = vec4(albedo.rgb * atten, 1.0);
+    // Blinn-Phong model
+    vec3 kd = albedo.rgb;
+    vec3 ks = lightCol;
+    float q = 300.0;
+
+    col = (kd * max(0.0, dot(N, L) * 0.5 + 0.5) + ks * pow(max(0.0, dot(N, H)), q)) * atten * lightCol;
+
+    outColor = vec4(col, 1.0);
 }
