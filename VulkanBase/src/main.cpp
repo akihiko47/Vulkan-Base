@@ -137,6 +137,11 @@ namespace std {
 	};
 }
 
+// push constants
+struct PushConstants {
+	glm::vec4 data;  // x - time, yzw - camPos
+};
+
 // for descriptor layout
 struct UniformBufferObject {
 	glm::mat4 model;
@@ -187,6 +192,9 @@ private:
 
 	void mainLoop() {
 		while (!glfwWindowShouldClose(window)) {
+			processInput();
+			updateTime();
+
 			glfwPollEvents();
 			drawFrame();
 		}
@@ -239,6 +247,11 @@ private:
 		glfwTerminate();
 	}
 
+	void processInput() {
+		if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
+			glfwSetWindowShouldClose(window, true);
+		}
+	}
 
 	void initWindow() {
 		glfwInit();
@@ -1001,11 +1014,19 @@ private:
 		colorBlending.blendConstants[2] = 0.0f; // Optional
 		colorBlending.blendConstants[3] = 0.0f; // Optional
 
+		// push constants
+		VkPushConstantRange pushConstantRange{};
+		pushConstantRange.offset = 0;
+		pushConstantRange.size = sizeof(PushConstants);
+		pushConstantRange.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
 		// uniform values
 		VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
 		pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 		pipelineLayoutInfo.setLayoutCount = 1;
 		pipelineLayoutInfo.pSetLayouts = &descriptorSetLayout;
+		pipelineLayoutInfo.pushConstantRangeCount = 1;
+		pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
 
 		if (vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS) {
 			throw std::runtime_error("failed to create pipeline layout!");
@@ -1282,6 +1303,14 @@ private:
 		scissor.offset = {0, 0};
 		scissor.extent = swapChainExtent;
 		vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
+
+		// update push constants
+		PushConstants pushConstants{};
+		pushConstants.data.x = time;
+		pushConstants.data.y = camPos.x;
+		pushConstants.data.z = camPos.y;
+		pushConstants.data.w = camPos.z;
+		vkCmdPushConstants(commandBuffer, pipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConstants), &pushConstants);
 
 		// draw
 		vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(indices.size()), 1, 0, 0, 0);
@@ -2093,15 +2122,17 @@ private:
 		return VK_SAMPLE_COUNT_1_BIT;
 	}
 
-	void updateUniformBuffer(uint32_t currentImage) {
+	void updateTime() {
 		static auto startTime = std::chrono::high_resolution_clock::now();
 
 		auto currentTime = std::chrono::high_resolution_clock::now();
-		float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
+		time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
+	}
 
+	void updateUniformBuffer(uint32_t currentImage) {
 		UniformBufferObject ubo{};
 		ubo.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f) * 0.2f, glm::vec3(0.0f, 0.0f, 1.0f));
-		ubo.view = glm::lookAt(glm::vec3(3.0f, 3.0f, 3.0f), glm::vec3(0.0f, 0.0f, 0.2f), glm::vec3(0.0f, 0.0f, 1.0f));
+		ubo.view = glm::lookAt(camPos, glm::vec3(0.0f, 0.0f, 0.2f), glm::vec3(0.0f, 0.0f, 1.0f));
 		ubo.proj = glm::perspective(glm::radians(30.0f), (float)swapChainExtent.width / (float)swapChainExtent.height, 0.1f, 100.0f);
 		ubo.proj[1][1] *= -1;
 
@@ -2243,6 +2274,8 @@ private:
 	VkImageView colorImageView;
 
 	uint32_t currentFrame = 0;
+	float time = 0.0f;
+	glm::vec3 camPos = glm::vec3(3.0f, 3.0f, 3.0f);
 
 	bool framebufferResized = false;
 };

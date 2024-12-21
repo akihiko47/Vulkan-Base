@@ -13,13 +13,11 @@ layout(location = 2) in vec2 inTexCoord;
 layout(location = 0) out vec3 fragNormal;
 layout(location = 1) out vec2 fragTexCoord;
 layout(location = 2) out vec3 worldPos;
-layout(location = 3) out vec3 camPos;
 
 void main() {
     // interpolation
     fragNormal = inNormal;
     fragTexCoord = inTexCoord;
-    camPos = inverse(ubo.view)[3].xyz;
 
     // space transformations
     worldPos = (ubo.model * vec4(inPosition, 1.0)).xyz;

@@ -2,14 +2,21 @@
 
 layout(binding = 1) uniform sampler2D texSampler;
 
+layout(push_constant) uniform pc {
+    vec4 pcData;
+};
+
 layout(location = 0) in vec3 fragNormal;
 layout(location = 1) in vec2 fragTexCoord;
 layout(location = 2) in vec3 worldPos;
-layout(location = 3) in vec3 camPos;
 
 layout(location = 0) out vec4 outColor;
 
 void main() {
+    // push constants
+    float time = pcData.x;
+    vec3 camPos = pcData.yzw;
+
     // main color
     vec3 col = vec3(0.0, 0.0, 0.0);
 
@@ -21,10 +28,10 @@ void main() {
 
     // light
     vec3 lightPos = vec3(0.0, 0.0, 0.5);
-    vec3 lightCol = vec3(1.0, 0.9, 0.7) * 0.3;
+    vec3 lightCol = vec3(1.0, 0.9, 0.7) * (sin(time) * 0.5 + 0.5);
 
     vec3 L = normalize(lightPos - worldPos);
-    vec3 V = normalize(camPos);
+    vec3 V = normalize(camPos - worldPos);
     vec3 H = normalize(L + V);
     
     float atten = 1.0 / dot(lightPos - worldPos, lightPos - worldPos);
