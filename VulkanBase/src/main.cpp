@@ -1,3 +1,7 @@
+#pragma once
+
+#include "mesh.h"
+
 #define VK_LOD_CLAMP_NONE 15.0f  // max mipmap level for sampler
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
@@ -57,17 +61,6 @@ const std::vector<const char*> deviceExtensions = {
 	const bool enableValidationLayers = true;
 #endif
 
-// Struct for finding queue familes
-struct QueueFamilyIndices {
-	std::optional<uint32_t> graphicsFamily;
-	std::optional<uint32_t> presentFamily;
-	std::optional<uint32_t> transferFamily;
-
-	bool isComplete() {
-		return graphicsFamily.has_value() && presentFamily.has_value() && transferFamily.has_value();
-	}
-};
-
 // Need this struct to check if our surface is compatible with swap-chain
 struct SwapChainSupportDetails {
 	VkSurfaceCapabilitiesKHR capabilities;
@@ -82,60 +75,6 @@ struct ShaderCompilationInfo {
 	std::vector<char> source;
 	shaderc::CompileOptions options;
 };
-
-// Need this struct for vertex buffer
-struct Vertex {
-	glm::vec3 pos;
-	glm::vec3 normal;
-	glm::vec2 texCoord;
-
-	static VkVertexInputBindingDescription getBindingDescription() {
-		VkVertexInputBindingDescription bindingDescription{};
-		bindingDescription.binding = 0;  // start
-		bindingDescription.stride = sizeof(Vertex);  // step (32 bytes)
-		bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;  // per vertex (other setting for instancing)
-
-		return bindingDescription;
-	}
-
-	static std::array<VkVertexInputAttributeDescription, 3> getAttributeDescriptions() {
-		std::array<VkVertexInputAttributeDescription, 3> attributeDescriptions{};
-
-		// position
-		attributeDescriptions[0].binding = 0;
-		attributeDescriptions[0].location = 0;
-		attributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
-		attributeDescriptions[0].offset = offsetof(Vertex, pos);  // 0 bytes
-
-		// normal
-		attributeDescriptions[1].binding = 0;
-		attributeDescriptions[1].location = 1;
-		attributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
-		attributeDescriptions[1].offset = offsetof(Vertex, normal);  // 12 bytes
-
-		// UV coordinates
-		attributeDescriptions[2].binding = 0;
-		attributeDescriptions[2].location = 2;
-		attributeDescriptions[2].format = VK_FORMAT_R32G32_SFLOAT;
-		attributeDescriptions[2].offset = offsetof(Vertex, texCoord);  // 24 bytes
-
-		return attributeDescriptions;
-	}
-
-	bool operator==(const Vertex& other) const {
-		return pos == other.pos && normal == other.normal && texCoord == other.texCoord;
-	}
-};
-
-namespace std {
-	template<> struct hash<Vertex> {
-		size_t operator()(Vertex const& vertex) const {
-			return ((hash<glm::vec3>()(vertex.pos) ^
-					(hash<glm::vec3>()(vertex.normal) << 1)) >> 1) ^
-				(hash<glm::vec2>()(vertex.texCoord) << 1);
-		}
-	};
-}
 
 // push constants
 struct PushConstants {
@@ -159,8 +98,6 @@ public:
 	}
 
 private:
-	
-
 	void initVulkan() {
 		createInstance();
 		setupDebugMessenger();
@@ -180,9 +117,7 @@ private:
 		createTextureImage();
 		createTextureImageView();
 		createTextureSampler();
-		loadModel();
-		createVertexBuffer();
-		createIndexBuffer();
+		mesh1.Load(MODEL_PATH, allocator, device, physicalDevice, surface, transferCommandPool, transferQueue);
 		createUniformBuffers();
 		createDescriptorPool();
 		createDescriptorSets();
@@ -216,8 +151,7 @@ private:
 		vkDestroyDescriptorPool(device, descriptorPool, nullptr);  // destroys descriptor sets as well
 		vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
 
-		vmaDestroyBuffer(allocator, vertexBuffer, vertexAllocation);
-		vmaDestroyBuffer(allocator, indexBuffer, indexAllocation);
+		mesh1.Destroy();
 
 		vkDestroyPipeline(device, graphicsPipeline, nullptr);
 		vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
@@ -328,7 +262,7 @@ private:
 	void populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT &createInfo) {
 		createInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
 		createInfo.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT |
-									 //VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT |
+									 VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT |
 									 VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
 									 VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
 		createInfo.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
@@ -387,7 +321,7 @@ private:
 	}
 
 	void createLogicalDevice() {
-		QueueFamilyIndices indices = findQueueFamilies(physicalDevice);
+		vu::QueueFamilyIndices indices = vu::findQueueFamilies(physicalDevice, surface);
 
 		std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
 		std::set<uint32_t> uniqueQueueFamilies = {indices.graphicsFamily.value(), indices.presentFamily.value(), indices.transferFamily.value()};
@@ -445,7 +379,7 @@ private:
 		VkPhysicalDeviceFeatures deviceFeatures;
 		vkGetPhysicalDeviceFeatures(device, &deviceFeatures);
 
-		QueueFamilyIndices indices = findQueueFamilies(device);
+		vu::QueueFamilyIndices indices = vu::findQueueFamilies(device, surface);
 		SwapChainSupportDetails swapChainSupport = querySwapChainSupport(device);
 
 		bool deviceSupporstNeededQueues = indices.isComplete();
@@ -479,51 +413,6 @@ private:
 		}
 
 		return requiredExtensions.empty();
-	}
-
-	// This function gets queue families supported by physical device
-	// And checks if these families are valid for our tasks
-	// 
-	// This function returs index of valid queue family for each task
-	// Packed in structure
-	//
-	// isComplete() - we found queue families for all needed tasks
-	QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device) {
-		QueueFamilyIndices indices;
-
-		uint32_t queueFamilyCount = 0;
-		vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, nullptr);
-
-		std::vector<VkQueueFamilyProperties> queueFamilies(queueFamilyCount);
-		vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, queueFamilies.data());
-
-		/*std::cout << "avaliable queue families:\n";
-		for (VkQueueFamilyProperties queueProperties : queueFamilies) {
-			std::cout << "\t" << "queues in family: " << queueProperties.queueCount << "\n";
-		}
-		std::cout << "\n";*/
-
-		for (int i = 0; i < queueFamilies.size(); i++) {
-			if (queueFamilies[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) {
-				indices.graphicsFamily = i;
-			}
-
-			if (queueFamilies[i].queueFlags & VK_QUEUE_TRANSFER_BIT & ~VK_QUEUE_GRAPHICS_BIT) {
-				indices.transferFamily = i;
-			}
-
-			VkBool32 presentSupport = false;
-			vkGetPhysicalDeviceSurfaceSupportKHR(device, i, surface, &presentSupport);
-			if (presentSupport) {
-				indices.presentFamily = i;
-			}
-
-			if (indices.isComplete()) {
-				break;
-			}
-		}
-
-		return indices;
 	}
 
 	void createMemoryAllocator() {
@@ -585,7 +474,7 @@ private:
 		createInfo.imageArrayLayers = 1;  // amount of layers each image consists of (for stereoscopic 3D application)
 		createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
 
-		QueueFamilyIndices indices = findQueueFamilies(physicalDevice);
+		vu::QueueFamilyIndices indices = vu::findQueueFamilies(physicalDevice, surface);
 		uint32_t queueFamilyIndices[] = {indices.graphicsFamily.value(), indices.presentFamily.value()};
 
 		if (indices.graphicsFamily != indices.presentFamily) {
@@ -1197,7 +1086,7 @@ private:
 	}
 
 	void createCommandPool() {
-		QueueFamilyIndices queueFamilyIndices = findQueueFamilies(physicalDevice);
+		vu::QueueFamilyIndices queueFamilyIndices = vu::findQueueFamilies(physicalDevice, surface);
 
 		VkCommandPoolCreateInfo graphicsPoolInfo{};
 		graphicsPoolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
@@ -1277,17 +1166,6 @@ private:
 		// bind pipeline
 		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
 
-		// bind vertex buffer
-		VkBuffer vertexBuffers[] = {vertexBuffer};
-		VkDeviceSize offsets[] = {0};
-		vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
-
-		// bind descriptor set for this frame
-		vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets.data()[currentFrame], 0, nullptr);
-
-		// bind index buffer
-		vkCmdBindIndexBuffer(commandBuffer, indexBuffer, 0, VK_INDEX_TYPE_UINT32);
-
 		// update viewport
 		VkViewport viewport{};
 		viewport.x = 0.0f;
@@ -1304,6 +1182,9 @@ private:
 		scissor.extent = swapChainExtent;
 		vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
+		// bind descriptor set for this frame
+		vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets.data()[currentFrame], 0, nullptr);
+
 		// update push constants
 		PushConstants pushConstants{};
 		pushConstants.data.x = time;
@@ -1312,8 +1193,8 @@ private:
 		pushConstants.data.w = camPos.z;
 		vkCmdPushConstants(commandBuffer, pipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConstants), &pushConstants);
 
-		// draw
-		vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(indices.size()), 1, 0, 0, 0);
+		// bind vertex and index buffers and draw mesh
+		mesh1.BindAndRender(commandBuffer);
 
 		// end render pass
 		vkCmdEndRenderPass(commandBuffer);
@@ -1361,46 +1242,6 @@ private:
 		createFrameBuffers();
 	}
 
-	void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer &buffer, VkDeviceMemory &bufferMemory) {
-		QueueFamilyIndices indices = findQueueFamilies(physicalDevice);
-		uint32_t queueFamilyIndices[] = {indices.graphicsFamily.value(), indices.transferFamily.value()};
-
-		VkBufferCreateInfo bufferInfo{};
-		bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-		bufferInfo.size = size;
-		bufferInfo.usage = usage;
-
-		if (indices.graphicsFamily != indices.transferFamily) {
-			bufferInfo.sharingMode = VK_SHARING_MODE_CONCURRENT;  // owned by one queue family or multiple at the same time
-			bufferInfo.queueFamilyIndexCount = 2;
-			bufferInfo.pQueueFamilyIndices = queueFamilyIndices;
-		} else {
-			bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;  // owned by one queue family or multiple at the same time
-		}
-
-
-		if (vkCreateBuffer(device, &bufferInfo, nullptr, &buffer) != VK_SUCCESS) {
-			throw std::runtime_error("failed to create buffer!");
-		}
-
-		// get requirements needed for allocationg memory for this buffer
-		VkMemoryRequirements memRequirements;
-		vkGetBufferMemoryRequirements(device, buffer, &memRequirements);
-
-		// memory allocation
-		VkMemoryAllocateInfo allocInfo{};
-		allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-		allocInfo.allocationSize = memRequirements.size;
-		allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, properties);
-
-		if (vkAllocateMemory(device, &allocInfo, nullptr, &bufferMemory) != VK_SUCCESS) {
-			throw std::runtime_error("failed to allocate buffer memory!");
-		}
-
-		// bind allocated memory to buffer
-		vkBindBufferMemory(device, buffer, bufferMemory, 0);
-	}
-
 	void createBuffer(VkDeviceSize size,
 					  VkBufferUsageFlags bufferUsage,
 					  VmaMemoryUsage allocationUsage,
@@ -1408,7 +1249,7 @@ private:
 					  VkBuffer &buffer,
 					  VmaAllocation &allocation,
 					  VmaAllocationInfo &allocationInfo) {
-		QueueFamilyIndices indices = findQueueFamilies(physicalDevice);
+		vu::QueueFamilyIndices indices = vu::findQueueFamilies(physicalDevice, surface);
 		uint32_t queueFamilyIndices[] = {indices.graphicsFamily.value(), indices.transferFamily.value()};
 
 		VkBufferCreateInfo bufferInfo{};
@@ -1433,117 +1274,6 @@ private:
 		}
 	}
 
-	VkCommandBuffer beginSingleTimeCommands(VkCommandPool commandPool) {
-		// create command buffer
-		VkCommandBufferAllocateInfo allocInfo{};
-		allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-		allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-		allocInfo.commandPool = commandPool;
-		allocInfo.commandBufferCount = 1;
-
-		VkCommandBuffer commandBuffer;
-		vkAllocateCommandBuffers(device, &allocInfo, &commandBuffer);
-
-		// begin recording
-		VkCommandBufferBeginInfo beginInfo{};
-		beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-		beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;  // tell driver that this command buffer will be used once
-
-		vkBeginCommandBuffer(commandBuffer, &beginInfo);
-
-		return commandBuffer;
-	}
-
-	void endSingleTimeCommands(VkCommandBuffer commandBuffer, VkCommandPool commandPool) {
-		// stop recording
-		vkEndCommandBuffer(commandBuffer);
-
-		// submit command buffer to queue
-		VkSubmitInfo submitInfo{};
-		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-		submitInfo.commandBufferCount = 1;
-		submitInfo.pCommandBuffers = &commandBuffer;
-
-		vkQueueSubmit(transferQueue, 1, &submitInfo, VK_NULL_HANDLE);
-		vkQueueWaitIdle(transferQueue);
-
-		// free command buffer
-		vkFreeCommandBuffers(device, commandPool, 1, &commandBuffer);
-	}
-
-	void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size) {
-		VkCommandBuffer commandBuffer = beginSingleTimeCommands(transferCommandPool);
-
-		// copy buffers
-		VkBufferCopy copyRegion{};
-		copyRegion.srcOffset = 0;
-		copyRegion.dstOffset = 0;
-		copyRegion.size = size;
-
-		vkCmdCopyBuffer(commandBuffer, srcBuffer, dstBuffer, 1, &copyRegion);
-
-		endSingleTimeCommands(commandBuffer, transferCommandPool);
-	}
-
-	void createVertexBuffer() {
-		VkDeviceSize bufferSize = sizeof(vertices[0]) * vertices.size();
-
-		// staging buffer that is visible to cpu
-		VkBuffer stagingBuffer;
-		VmaAllocation stagingAllocation;
-		VmaAllocationInfo stagingAllocationInfo;
-		createBuffer(bufferSize,
-					 VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-					 VMA_MEMORY_USAGE_AUTO,
-					 VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT,
-					 stagingBuffer, stagingAllocation, stagingAllocationInfo);
-
-		// map gpu memory to cpu memory (can access gpu memory like normal)
-		vmaCopyMemoryToAllocation(allocator, vertices.data(), stagingAllocation, 0, bufferSize);
-
-		// vertex buffer that is not visible to cpu (faster local gpu memory)
-		createBuffer(bufferSize,
-					 VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-					 VMA_MEMORY_USAGE_AUTO,
-					 0,
-					 vertexBuffer, vertexAllocation, vertexAllocationInfo);
-
-		// move data from staging buffer to high performance vertex buffer
-		copyBuffer(stagingBuffer, vertexBuffer, bufferSize);
-
-		// free staging buffer
-		vmaDestroyBuffer(allocator, stagingBuffer, stagingAllocation);
-	}
-
-	void createIndexBuffer() {
-		VkDeviceSize bufferSize = sizeof(indices[0]) * indices.size();
-
-		// staging buffer that is visible to cpu
-		VkBuffer stagingBuffer;
-		VmaAllocation stagingAllocation;
-		VmaAllocationInfo stagingAllocationInfo;
-		createBuffer(bufferSize,
-					 VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-					 VMA_MEMORY_USAGE_AUTO,
-					 VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT,
-					 stagingBuffer, stagingAllocation, stagingAllocationInfo);
-
-		// map gpu memory to cpu memory (can access gpu memory like normal)
-		vmaCopyMemoryToAllocation(allocator, indices.data(), stagingAllocation, 0, bufferSize);
-
-		// index buffer that is not visible to cpu (faster local gpu memory)
-		createBuffer(bufferSize,
-					 VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-					 VMA_MEMORY_USAGE_AUTO,
-					 0,
-					 indexBuffer, indexAllocation, indexAllocationInfo);
-
-		// move data from staging buffer to high performance index buffer
-		copyBuffer(stagingBuffer, indexBuffer, bufferSize);
-
-		// free staging buffer
-		vmaDestroyBuffer(allocator, stagingBuffer, stagingAllocation);
-	}
 
 	void createUniformBuffers() {
 		VkDeviceSize bufferSize = sizeof(UniformBufferObject);
@@ -1692,7 +1422,7 @@ private:
 	}
 
 	void transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t mipLevels) {
-		VkCommandBuffer commandBuffer = beginSingleTimeCommands(transferCommandPool);
+		VkCommandBuffer commandBuffer = vu::beginSingleTimeCommands(transferCommandPool, device);
 
 		VkImageMemoryBarrier barrier{};
 		barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
@@ -1748,11 +1478,11 @@ private:
 							 0, nullptr,
 							 1, &barrier);
 
-		endSingleTimeCommands(commandBuffer, transferCommandPool);
+		vu::endSingleTimeCommands(commandBuffer, transferCommandPool, device, transferQueue);
 	}
 
 	void copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height) {
-		VkCommandBuffer commandBuffer = beginSingleTimeCommands(transferCommandPool);
+		VkCommandBuffer commandBuffer = vu::beginSingleTimeCommands(transferCommandPool, device);
 
 		VkBufferImageCopy region{};
 		region.bufferOffset = 0;
@@ -1769,7 +1499,7 @@ private:
 
 		vkCmdCopyBufferToImage(commandBuffer, buffer, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
 
-		endSingleTimeCommands(commandBuffer, transferCommandPool);
+		vu::endSingleTimeCommands(commandBuffer, transferCommandPool, device, transferQueue);
 	}
 
 	void generateMipmaps(VkImage image, VkFormat imageFormat, int32_t texWidth, int32_t texHeight, uint32_t mipLevels) {
@@ -1781,7 +1511,7 @@ private:
 			throw std::runtime_error("texture image format does not support linear blitting!");
 		}
 
-		VkCommandBuffer commandBufferGraphics = beginSingleTimeCommands(graphicsCommandPool);
+		VkCommandBuffer commandBufferGraphics = vu::beginSingleTimeCommands(graphicsCommandPool, device);
 
 		// we need barrier to transition mip levels layouts to copy from and to them
 		VkImageMemoryBarrier barrier{};
@@ -1867,7 +1597,7 @@ private:
 			1, &barrier
 		);
 
-		endSingleTimeCommands(commandBufferGraphics, graphicsCommandPool);
+		vu::endSingleTimeCommands(commandBufferGraphics, graphicsCommandPool, device, transferQueue);
 	}
 
 	void createTextureImage() {
@@ -2062,48 +1792,7 @@ private:
 		return format == VK_FORMAT_D32_SFLOAT_S8_UINT || format == VK_FORMAT_D24_UNORM_S8_UINT;
 	}
 
-	void loadModel() {
-		tinyobj::attrib_t attrib;
-		std::vector<tinyobj::shape_t> shapes;
-		std::vector<tinyobj::material_t> materials;
-		std::string err;
-
-		if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &err, MODEL_PATH.c_str())) {
-			throw std::runtime_error(err);
-		}
-
-		std::unordered_map<Vertex, uint32_t> uniqueVertices{};
-
-		for (const auto &shape : shapes) {
-			for (const auto &index : shape.mesh.indices) {
-				Vertex vertex{};
-
-				vertex.pos = {
-					attrib.vertices[3 * index.vertex_index + 0],
-					attrib.vertices[3 * index.vertex_index + 1],
-					attrib.vertices[3 * index.vertex_index + 2]
-				};
-
-				vertex.normal = {
-					attrib.normals[3 * index.normal_index + 0],
-					attrib.normals[3 * index.normal_index + 1],
-					attrib.normals[3 * index.normal_index + 2]
-				};
-
-				vertex.texCoord = {
-					attrib.texcoords[2 * index.texcoord_index + 0],
-					1.0 - attrib.texcoords[2 * index.texcoord_index + 1]
-				};
-
-				if (uniqueVertices.count(vertex) == 0) {
-					uniqueVertices[vertex] = static_cast<uint32_t>(vertices.size());
-					vertices.push_back(vertex);
-				}
-
-				indices.push_back(uniqueVertices[vertex]);
-			}
-		}
-	}
+	
 
 	VkSampleCountFlagBits getMaxUsableSampleCount() {
 		VkPhysicalDeviceProperties physicalDeviceProperties;
@@ -2241,12 +1930,7 @@ private:
 	std::vector<VkSemaphore> renderFinishedSemaphores;
 	std::vector<VkFence> inFlightFences;
 
-	VkBuffer vertexBuffer;
-	VmaAllocation vertexAllocation;
-	VmaAllocationInfo vertexAllocationInfo;
-	VkBuffer indexBuffer;
-	VmaAllocation indexAllocation;
-	VmaAllocationInfo indexAllocationInfo;
+	Mesh mesh1;
 
 	std::vector<VkBuffer> uniformBuffers;
 	std::vector<VmaAllocation> uniformAllocations;
@@ -2263,9 +1947,6 @@ private:
 	VmaAllocation depthImageAllocation;
 	VmaAllocationInfo depthImageAllocationInfo;
 	VkImageView depthImageView;
-
-	std::vector<Vertex> vertices;
-	std::vector<uint32_t> indices;
 
 	VkSampleCountFlagBits msaaSamples = VK_SAMPLE_COUNT_1_BIT;
 	VkImage colorImage;
