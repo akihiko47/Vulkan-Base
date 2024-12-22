@@ -38,7 +38,6 @@
 const uint32_t WIDTH = 800;
 const uint32_t HEIGHT = 600;
 
-const std::string MODEL_PATH = "models/viking_room.obj";
 const std::string TEXTURE_PATH = "textures/viking_room.png";
 
 const int MAX_FRAMES_IN_FLIGHT = 2;
@@ -117,7 +116,8 @@ private:
 		createTextureImage();
 		createTextureImageView();
 		createTextureSampler();
-		mesh1.Load(MODEL_PATH, allocator, device, physicalDevice, surface, transferCommandPool, transferQueue);
+		mesh1.Load("models/viking_room.obj", allocator, device, physicalDevice, surface, transferCommandPool, transferQueue);
+		mesh2.Load("models/tree.obj", allocator, device, physicalDevice, surface, transferCommandPool, transferQueue);
 		createUniformBuffers();
 		createDescriptorPool();
 		createDescriptorSets();
@@ -152,6 +152,7 @@ private:
 		vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
 
 		mesh1.Destroy();
+		mesh2.Destroy();
 
 		vkDestroyPipeline(device, graphicsPipeline, nullptr);
 		vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
@@ -1195,6 +1196,7 @@ private:
 
 		// bind vertex and index buffers and draw mesh
 		mesh1.BindAndRender(commandBuffer);
+		mesh2.BindAndRender(commandBuffer);
 
 		// end render pass
 		vkCmdEndRenderPass(commandBuffer);
@@ -1931,6 +1933,7 @@ private:
 	std::vector<VkFence> inFlightFences;
 
 	Mesh mesh1;
+	Mesh mesh2;
 
 	std::vector<VkBuffer> uniformBuffers;
 	std::vector<VmaAllocation> uniformAllocations;
