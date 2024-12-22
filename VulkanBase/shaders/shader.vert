@@ -16,7 +16,7 @@ layout(location = 2) out vec3 worldPos;
 
 void main() {
     // interpolation
-    fragNormal = inNormal;
+    fragNormal = (transpose(inverse(ubo.model)) * vec4(inNormal, 0.0)).xyz;
     fragTexCoord = inTexCoord;
 
     // space transformations

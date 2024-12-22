@@ -28,7 +28,7 @@ void main() {
 
     // light
     vec3 lightPos = vec3(0.0, 0.0, 0.5);
-    vec3 lightCol = vec3(1.0, 0.9, 0.7) * (sin(time) * 0.5 + 0.5);
+    vec3 lightCol = vec3(1.0, 0.9, 0.7) * ((sin(time) * 0.5 + 0.5) * 0.2 + 0.2);
 
     vec3 L = normalize(lightPos - worldPos);
     vec3 V = normalize(camPos - worldPos);
@@ -39,9 +39,11 @@ void main() {
     // Blinn-Phong model
     vec3 kd = albedo.rgb;
     vec3 ks = lightCol;
+    vec3 ka = vec3(0.17, 0.12, 0.19) * 0.5;
     float q = 500.0;
 
     col = (kd * max(0.0, dot(N, L) * 0.5 + 0.5) + ks * pow(max(0.0, dot(N, H)), q)) * atten * lightCol;
+    col += ka;
 
     outColor = vec4(col, 1.0);
 }
