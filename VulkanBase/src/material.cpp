@@ -1,25 +1,25 @@
 #include "material.h"
 
 void Material::Initialize(
-		VmaAllocator allocator,
-		VkSurfaceKHR surface,
-		VkFormat swapChainImageFormat,
-		const int max_frames_in_flight,
-		VkPhysicalDevice physicalDevice,
-		VkDevice device,
-		VkExtent2D swapChainExtent,
+		VmaAllocator          allocator,
+		VkSurfaceKHR          surface,
+		VkFormat              swapChainImageFormat,
+		const int             max_frames_in_flight,
+		VkPhysicalDevice      physicalDevice,
+		VkDevice              device,
+		VkExtent2D            swapChainExtent,
 		VkSampleCountFlagBits msaaSamples,
-		VkRenderPass renderPass) {
+		VkRenderPass          renderPass) {
 
-	m_allocator = allocator;
-	m_surface = surface;
-	m_swapChainImageFormat = swapChainImageFormat;
-	m_max_frames_in_flight = max_frames_in_flight;
-	m_physicalDevice = physicalDevice;
-	m_device = device;
-	m_swapChainExtent = swapChainExtent;
-	m_msaaSamples = msaaSamples;
-	m_renderPass = renderPass;
+	m_allocator             = allocator;
+	m_surface               = surface;
+	m_swapChainImageFormat  = swapChainImageFormat;
+	m_max_frames_in_flight  = max_frames_in_flight;
+	m_physicalDevice        = physicalDevice;
+	m_device                = device;
+	m_swapChainExtent       = swapChainExtent;
+	m_msaaSamples           = msaaSamples;
+	m_renderPass            = renderPass;
 
 	CreateDescriptorSetLayout();
 	CreateGraphicsPipeline();
@@ -27,6 +27,7 @@ void Material::Initialize(
 	CreateUniformBuffers();
 	CreateDescriptorSets();
 }
+
 
 void Material::CreateDescriptorSetLayout() {
 	VkDescriptorSetLayoutBinding uboLayoutBinding{};
@@ -347,6 +348,7 @@ void Material::CreateDescriptorSets() {
 	}
 }
 
+
 void Material::BindMaterial(VkCommandBuffer commandBuffer, uint32_t currentFrame, PushConstants &pushConstants) {
 	// bind pipeline
 	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphicsPipeline);
@@ -364,9 +366,11 @@ void Material::SetResourses(VkImageView textureImageView, VkSampler textureSampl
 	m_textureSampler = textureSampler;
 }
 
+
 void  Material::UpdateSwapChain(VkExtent2D swapChainExtent) {
 	m_swapChainExtent = swapChainExtent;
 }
+
 
 void Material::UpdateUniformBuffer(uint32_t currentImage, float time, glm::vec3 camPos) {
 	UniformBufferObject ubo{};

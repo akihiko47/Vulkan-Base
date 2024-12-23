@@ -14,12 +14,10 @@
 #include "mesh.h"
 
 
-// push constants
 struct PushConstants {
 	glm::vec4 data;  // x - time, yzw - camPos
 };
 
-// for descriptor layout
 struct UniformBufferObject {
 	glm::mat4 model;
 	glm::mat4 view;
@@ -58,23 +56,23 @@ private:
 	VkSampler   m_textureSampler;
 
 	// parameters
-	int m_max_frames_in_flight;
-	VmaAllocator     m_allocator;
-	VkSurfaceKHR     m_surface;
-	VkFormat m_swapChainImageFormat;
-	VkPhysicalDevice m_physicalDevice;
-	VkDevice m_device;
-	VkExtent2D m_swapChainExtent;
-	VkSampleCountFlagBits m_msaaSamples = VK_SAMPLE_COUNT_1_BIT;
-	VkRenderPass m_renderPass;
+	int                   m_max_frames_in_flight;
+	VmaAllocator          m_allocator;
+	VkSurfaceKHR          m_surface;
+	VkFormat              m_swapChainImageFormat;
+	VkPhysicalDevice      m_physicalDevice;
+	VkDevice              m_device;
+	VkExtent2D            m_swapChainExtent;
+	VkSampleCountFlagBits m_msaaSamples;
+	VkRenderPass          m_renderPass;
 
 	// creating these variables
-	VkDescriptorSetLayout m_descriptorSetLayout;
-	VkPipelineLayout m_pipelineLayout;  // describes all data that will be passed to shader
-	VkPipeline m_graphicsPipeline;
-	VkDescriptorPool m_descriptorPool;
-	std::vector<VkBuffer> m_uniformBuffers;
-	std::vector<VmaAllocation> m_uniformAllocations;
+	VkDescriptorSetLayout          m_descriptorSetLayout;
+	VkPipelineLayout               m_pipelineLayout;
+	VkPipeline                     m_graphicsPipeline;
+	VkDescriptorPool               m_descriptorPool;
+	std::vector<VkBuffer>          m_uniformBuffers;
+	std::vector<VmaAllocation>     m_uniformAllocations;
 	std::vector<VmaAllocationInfo> m_uniformAllocationInfos;
-	std::vector<VkDescriptorSet> m_descriptorSets;
+	std::vector<VkDescriptorSet>   m_descriptorSets;
 };
