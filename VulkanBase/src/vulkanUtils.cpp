@@ -137,3 +137,135 @@ void vu::endSingleTimeCommands(VkCommandBuffer commandBuffer, VkCommandPool comm
 	// free command buffer
 	vkFreeCommandBuffers(device, commandPool, 1, &commandBuffer);
 }
+
+std::vector<char> vu::readFile(const std::string &filename) {
+	std::ifstream file(filename, std::ios::ate | std::ios::binary);
+
+	if (!file.is_open()) {
+		throw std::runtime_error("failed to open file!");
+	}
+
+	size_t filesize = (size_t)file.tellg();
+	std::vector<char> buffer(filesize);
+
+	file.seekg(0);
+	file.read(buffer.data(), filesize);
+	file.close();
+
+	return buffer;
+}
+
+void vu::preprocessShader(ShaderCompilationInfo &info) {
+	std::cout << "preprocessing shader " << info.fileName << "\n";
+
+	shaderc::Compiler compiler;
+
+	// preprocessed info is stored in result
+	shaderc::PreprocessedSourceCompilationResult result = compiler.PreprocessGlsl(info.source.data(), info.source.size(), info.kind, info.fileName, info.options);
+	if (result.GetCompilationStatus() != shaderc_compilation_status_success) {
+		std::cout << result.GetErrorMessage() << "\n\n";
+		throw std::runtime_error("failed to preprocess shader!");
+	}
+
+	// copy from result to info struct
+	const char *src = result.cbegin();
+	size_t newSize = result.end() - src;
+	info.source.resize(newSize);
+	memcpy(info.source.data(), src, newSize);
+
+	// print preprocessed code
+	/*std::string code = {info.source.data(), info.source.data() + info.source.size()};
+	std::cout << "preprocessed code:\n";
+	std::cout << code << "\n";*/
+}
+
+void vu::compileShaderToAssembly(ShaderCompilationInfo &info) {
+	std::cout << "compiling shader " << info.fileName << " to assembly\n";
+
+	shaderc::Compiler compiler;
+
+	// preprocessed info is stored in result
+	shaderc::AssemblyCompilationResult result = compiler.CompileGlslToSpvAssembly(info.source.data(), info.source.size(), info.kind, info.fileName, info.options);
+	if (result.GetCompilationStatus() != shaderc_compilation_status_success) {
+		std::cout << result.GetErrorMessage() << "\n\n";
+		throw std::runtime_error("failed to compile shader!");
+	}
+
+	// copy from result to info struct
+	const char *src = result.cbegin();
+	size_t newSize = result.end() - src;
+	info.source.resize(newSize);
+	memcpy(info.source.data(), src, newSize);
+
+	// print compiled code
+	/*std::string code = {info.source.data(), info.source.data() + info.source.size()};
+	std::cout << "compiled assembly code:\n";
+	std::cout << code << "\n";*/
+}
+
+void vu::compileShaderToSPIRV(ShaderCompilationInfo &info) {
+	std::cout << "compiling shader " << info.fileName << " to SPIR-V\n";
+
+	shaderc::Compiler compiler;
+
+	// preprocessed info is stored in result
+	shaderc::SpvCompilationResult result = compiler.AssembleToSpv(info.source.data(), info.source.size(), info.options);
+	if (result.GetCompilationStatus() != shaderc_compilation_status_success) {
+		std::cout << result.GetErrorMessage() << "\n\n";
+		throw std::runtime_error("failed to compile shader!");
+	}
+
+	// copy from result to info struct
+	const char *src = reinterpret_cast<const char*>(result.cbegin());
+	size_t newSize = reinterpret_cast<const char*>(result.end()) - src;
+	info.source.resize(newSize);
+	memcpy(info.source.data(), src, newSize);
+
+	// print compiled code
+	/*std::string code = {info.source.data(), info.source.data() + info.source.size()};
+	std::cout << "compiled SPIR-V code:\n";
+	std::cout << code << "\n";*/
+}
+
+VkShaderModule vu::createShaderModule(const std::vector<char> &code, VkDevice device) {
+	VkShaderModuleCreateInfo createInfo{};
+	createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+	createInfo.codeSize = code.size();
+	createInfo.pCode = reinterpret_cast<const uint32_t*>(code.data());
+
+	VkShaderModule shaderModule;
+	if (vkCreateShaderModule(device, &createInfo, nullptr, &shaderModule) != VK_SUCCESS) {
+		throw std::runtime_error("failed to create shader module!");
+	}
+
+	return shaderModule;
+}
+
+VkFormat vu::findDepthFormat(VkPhysicalDevice physicalDevice) {
+	return vu::findSupportedFormat(
+		{VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT},
+		VK_IMAGE_TILING_OPTIMAL,
+		VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT,
+		physicalDevice
+	);
+}
+
+// depth image can support multiple formats
+	// we can go with VK_FORMAT_D32_SFLOAT but to add flexibility we create this function
+	// it takes a list of candidate formats in order from most desirable to least desirable, 
+	// and checks which is the first one that is supported by physical device
+	// the support of a format depends on the tiling mode and usage
+VkFormat vu::findSupportedFormat(const std::vector<VkFormat> &candidates, VkImageTiling tiling, VkFormatFeatureFlags features, VkPhysicalDevice physicalDevice) {
+	for (VkFormat format : candidates) {
+		VkFormatProperties properties;
+		vkGetPhysicalDeviceFormatProperties(physicalDevice, format, &properties);
+
+		if (tiling == VK_IMAGE_TILING_LINEAR && (properties.linearTilingFeatures & features) == features) {
+			return format;
+		} else if (tiling == VK_IMAGE_TILING_OPTIMAL && (properties.optimalTilingFeatures & features) == features) {
+			return format;
+		}
+	}
+
+	throw std::runtime_error("failed to find supported format!");
+}

@@ -175,6 +175,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="src\material.cpp" />
     <ClCompile Include="src\vulkanUtils.cpp" />
     <ClCompile Include="src\main.cpp" />
     <ClCompile Include="src\mesh.cpp" />
@@ -185,6 +186,7 @@
     <None Include="shaders\shader.vert" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="src\material.h" />
     <ClInclude Include="src\vulkanUtils.h" />
     <ClInclude Include="src\mesh.h" />
   </ItemGroup>
