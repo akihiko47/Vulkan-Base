@@ -21,7 +21,7 @@
     <ClCompile Include="src\mesh.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\vulkanUtils.cpp">
+    <ClCompile Include="src\vu.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="src\material.cpp">
@@ -39,7 +39,7 @@
     <ClInclude Include="src\mesh.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="src\vulkanUtils.h">
+    <ClInclude Include="src\vu.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\material.h">

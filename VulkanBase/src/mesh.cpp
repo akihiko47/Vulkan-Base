@@ -1,5 +1,7 @@
 #include "mesh.h"
 
+using namespace vu;
+
 void Mesh::Load(
 		const std::string &modelPath,
 		VmaAllocator      &allocator,
@@ -136,11 +138,11 @@ void Mesh::LoadModel() {
 		throw std::runtime_error(err);
 	}
 
-	std::unordered_map<Vertex, uint32_t> uniqueVertices{};
+	std::unordered_map<vu::Vertex, uint32_t> uniqueVertices{};
 
 	for (const auto &shape : shapes) {
 		for (const auto &index : shape.mesh.indices) {
-			Vertex vertex{};
+			vu::Vertex vertex{};
 
 			vertex.pos = {
 				attrib.vertices[3 * index.vertex_index + 0],

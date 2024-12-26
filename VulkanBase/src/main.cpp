@@ -853,7 +853,7 @@ private:
 		vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
 		// update push constants
-		PushConstants pushConstants{};
+		vu::PushConstants pushConstants{};
 		pushConstants.data.x = time;
 		pushConstants.data.y = camPos.x;
 		pushConstants.data.z = camPos.y;
@@ -1480,11 +1480,11 @@ private:
 	VkShaderModule vertShaderModule;
 	VkShaderModule fragShaderModule;
 
-	Mesh mesh1;
-	Mesh mesh2;
+	vu::Mesh mesh1;
+	vu::Mesh mesh2;
 
-	Material material1;
-	Material material2;
+	vu::Material material1;
+	vu::Material material2;
 
 	uint32_t mipLevels;
 	VkImage textureImage;

@@ -1,5 +1,7 @@
 #include "material.h"
 
+using namespace vu;
+
 void Material::Initialize(
 		VmaAllocator          allocator,
 		VkSurfaceKHR          surface,
@@ -85,8 +87,8 @@ void Material::CreateGraphicsPipeline() {
 	dynamicStateCreateInfo.pDynamicStates = dynamicStates.data();
 
 	// vertex input
-	VkVertexInputBindingDescription bindingDescription = Vertex::getBindingDescription();
-	std::array<VkVertexInputAttributeDescription, 3> attributeDescriptions = Vertex::getAttributeDescriptions();
+	VkVertexInputBindingDescription bindingDescription = vu::Vertex::getBindingDescription();
+	std::array<VkVertexInputAttributeDescription, 3> attributeDescriptions = vu::Vertex::getAttributeDescriptions();
 
 	VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
 	vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
