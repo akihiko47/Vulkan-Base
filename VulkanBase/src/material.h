@@ -38,7 +38,7 @@ public:
 		VkSampleCountFlagBits msaaSamples,
 		VkRenderPass renderPass
 	);
-	void SetResourses(VkImageView textureImageView, VkSampler textureSampler);
+	void SetResourses(VkShaderModule vertShaderModule, VkShaderModule fragShaderModule, VkImageView textureImageView, VkSampler textureSampler);
 	void UpdateUniformBuffer(uint32_t currentImage, float time, glm::vec3 camPos);
 	void UpdateSwapChain(VkExtent2D swapChainExtent);
 	void BindMaterial(VkCommandBuffer commandBuffer, uint32_t currentFrame, PushConstants &pushConstants);
@@ -52,8 +52,10 @@ private:
 	void CreateUniformBuffers();
 
 	// resources
-	VkImageView m_textureImageView;
-	VkSampler   m_textureSampler;
+	VkImageView    m_textureImageView;
+	VkSampler      m_textureSampler;
+	VkShaderModule m_vertShaderModule;
+	VkShaderModule m_fragShaderModule;
 
 	// parameters
 	int                   m_max_frames_in_flight;

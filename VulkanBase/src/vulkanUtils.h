@@ -55,7 +55,7 @@ namespace vu {
 	void preprocessShader(ShaderCompilationInfo &info);
 	void compileShaderToAssembly(ShaderCompilationInfo &info);
 	void compileShaderToSPIRV(ShaderCompilationInfo &info);
-	VkShaderModule createShaderModule(const std::vector<char> &code, VkDevice device);
+	VkShaderModule createShaderModule(VkDevice device, vu::ShaderCompilationInfo info);
 
 	// === FORMATS ===
 	VkFormat findDepthFormat(VkPhysicalDevice physicalDevice);

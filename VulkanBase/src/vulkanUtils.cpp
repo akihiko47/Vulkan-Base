@@ -227,11 +227,15 @@ void vu::compileShaderToSPIRV(ShaderCompilationInfo &info) {
 	std::cout << code << "\n";*/
 }
 
-VkShaderModule vu::createShaderModule(const std::vector<char> &code, VkDevice device) {
+VkShaderModule vu::createShaderModule(VkDevice device, vu::ShaderCompilationInfo info) {
+	vu::preprocessShader(info);
+	vu::compileShaderToAssembly(info);
+	vu::compileShaderToSPIRV(info);
+
 	VkShaderModuleCreateInfo createInfo{};
 	createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-	createInfo.codeSize = code.size();
-	createInfo.pCode = reinterpret_cast<const uint32_t*>(code.data());
+	createInfo.codeSize = info.source.size();
+	createInfo.pCode = reinterpret_cast<const uint32_t*>(info.source.data());
 
 	VkShaderModule shaderModule;
 	if (vkCreateShaderModule(device, &createInfo, nullptr, &shaderModule) != VK_SUCCESS) {

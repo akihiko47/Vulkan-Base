@@ -58,40 +58,17 @@ void Material::CreateDescriptorSetLayout() {
 
 
 void Material::CreateGraphicsPipeline() {
-	vu::ShaderCompilationInfo vertShaderInfo{};
-	vertShaderInfo.fileName = "shaders/shader.vert";
-	vertShaderInfo.source = vu::readFile(vertShaderInfo.fileName);
-	vertShaderInfo.kind = shaderc_vertex_shader;
-	vertShaderInfo.options.SetOptimizationLevel(shaderc_optimization_level_performance);
-
-	vu::ShaderCompilationInfo fragShaderInfo{};
-	fragShaderInfo.fileName = "shaders/shader.frag";
-	fragShaderInfo.source = vu::readFile(fragShaderInfo.fileName);
-	fragShaderInfo.kind = shaderc_fragment_shader;
-	fragShaderInfo.options.SetOptimizationLevel(shaderc_optimization_level_performance);
-
-	preprocessShader(vertShaderInfo);
-	preprocessShader(fragShaderInfo);
-
-	compileShaderToAssembly(vertShaderInfo);
-	compileShaderToAssembly(fragShaderInfo);
-
-	compileShaderToSPIRV(vertShaderInfo);
-	compileShaderToSPIRV(fragShaderInfo);
-
-	VkShaderModule vertShaderModule = vu::createShaderModule(vertShaderInfo.source, m_device);
-	VkShaderModule fragShaderModule = vu::createShaderModule(fragShaderInfo.source, m_device);
 
 	VkPipelineShaderStageCreateInfo vertShaderStageInfo{};
 	vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
 	vertShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
-	vertShaderStageInfo.module = vertShaderModule;
+	vertShaderStageInfo.module = m_vertShaderModule;
 	vertShaderStageInfo.pName = "main";
 
 	VkPipelineShaderStageCreateInfo fragShaderStageInfo{};
 	fragShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
 	fragShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-	fragShaderStageInfo.module = fragShaderModule;
+	fragShaderStageInfo.module = m_fragShaderModule;
 	fragShaderStageInfo.pName = "main";
 
 	VkPipelineShaderStageCreateInfo shaderStages[] = {vertShaderStageInfo, fragShaderStageInfo};
@@ -251,9 +228,6 @@ void Material::CreateGraphicsPipeline() {
 	if (vkCreateGraphicsPipelines(m_device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &m_graphicsPipeline) != VK_SUCCESS) {
 		throw std::runtime_error("failed to create graphics pipeline!");
 	}
-
-	vkDestroyShaderModule(m_device, fragShaderModule, nullptr);
-	vkDestroyShaderModule(m_device, vertShaderModule, nullptr);
 }
 
 
@@ -361,7 +335,9 @@ void Material::BindMaterial(VkCommandBuffer commandBuffer, uint32_t currentFrame
 }
 
 
-void Material::SetResourses(VkImageView textureImageView, VkSampler textureSampler) {
+void Material::SetResourses(VkShaderModule vertShaderModule, VkShaderModule fragShaderModule, VkImageView textureImageView, VkSampler textureSampler) {
+	m_vertShaderModule = vertShaderModule;
+	m_fragShaderModule = fragShaderModule;
 	m_textureImageView = textureImageView;
 	m_textureSampler = textureSampler;
 }
@@ -393,6 +369,4 @@ void Material::Destroy() {
 
 	vkDestroyPipeline(m_device, m_graphicsPipeline, nullptr);
 	vkDestroyPipelineLayout(m_device, m_pipelineLayout, nullptr);
-
-	vkDestroyRenderPass(m_device, m_renderPass, nullptr);
 }

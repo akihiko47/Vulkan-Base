@@ -93,10 +93,11 @@ private:
 		createTextureImage();
 		createTextureImageView();
 		createTextureSampler();
+		createShaderModules();
 		mesh1.Load("models/viking_room.obj", allocator, device, physicalDevice, surface, transferCommandPool, transferQueue);
 		mesh2.Load("models/tree.obj", allocator, device, physicalDevice, surface, transferCommandPool, transferQueue);
-		material1.SetResourses(textureImageView, textureSampler);
-		material2.SetResourses(textureImageView, textureSampler);
+		material1.SetResourses(vertShaderModule, fragShaderModule, textureImageView, textureSampler);
+		material2.SetResourses(vertShaderModule, fragShaderModule, textureImageView, textureSampler);
 		material1.Initialize(allocator, surface, swapChainImageFormat, MAX_FRAMES_IN_FLIGHT, physicalDevice, device, swapChainExtent, msaaSamples, renderPass);
 		material2.Initialize(allocator, surface, swapChainImageFormat, MAX_FRAMES_IN_FLIGHT, physicalDevice, device, swapChainExtent, msaaSamples, renderPass);
 		createCommandBuffers();
@@ -121,12 +122,16 @@ private:
 		vkDestroySampler(device, textureSampler, nullptr);
 		vkDestroyImageView(device, textureImageView, nullptr);
 		vmaDestroyImage(allocator, textureImage, textureImageAllocation);
+		
+		destroyShaderModules();
 
 		mesh1.Destroy();
 		mesh2.Destroy();
 
 		material1.Destroy();
 		material2.Destroy();
+
+		vkDestroyRenderPass(device, renderPass, nullptr);
 
 		for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
 			vkDestroySemaphore(device, imageAvailableSemaphores[i], nullptr);
@@ -942,8 +947,28 @@ private:
 		}
 	}
 
+	void createShaderModules() {
+		vu::ShaderCompilationInfo vertShaderInfo{};
+		vertShaderInfo.fileName = "shaders/shader.vert";
+		vertShaderInfo.source = vu::readFile(vertShaderInfo.fileName);
+		vertShaderInfo.kind = shaderc_vertex_shader;
+		vertShaderInfo.options.SetOptimizationLevel(shaderc_optimization_level_performance);
 
-	
+		vu::ShaderCompilationInfo fragShaderInfo{};
+		fragShaderInfo.fileName = "shaders/shader.frag";
+		fragShaderInfo.source = vu::readFile(fragShaderInfo.fileName);
+		fragShaderInfo.kind = shaderc_fragment_shader;
+		fragShaderInfo.options.SetOptimizationLevel(shaderc_optimization_level_performance);
+
+		vertShaderModule = vu::createShaderModule(device, vertShaderInfo);
+		fragShaderModule = vu::createShaderModule(device, fragShaderInfo);
+	}
+
+	void destroyShaderModules() {
+		vkDestroyShaderModule(device, vertShaderModule, nullptr);
+		vkDestroyShaderModule(device, fragShaderModule, nullptr);
+	}
+		
 
 	uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) {
 		// need this to see available memory types of physical device
@@ -1451,6 +1476,9 @@ private:
 	std::vector<VkSemaphore> imageAvailableSemaphores;
 	std::vector<VkSemaphore> renderFinishedSemaphores;
 	std::vector<VkFence> inFlightFences;
+
+	VkShaderModule vertShaderModule;
+	VkShaderModule fragShaderModule;
 
 	Mesh mesh1;
 	Mesh mesh2;
