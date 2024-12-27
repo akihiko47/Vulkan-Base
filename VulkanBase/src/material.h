@@ -11,6 +11,7 @@
 #include <iostream>
 
 #include "vu.h"
+#include "transform.h"
 
 namespace vu {
 
@@ -28,7 +29,7 @@ namespace vu {
 			VkRenderPass renderPass
 		);
 		void SetResourses(VkShaderModule vertShaderModule, VkShaderModule fragShaderModule, VkImageView textureImageView, VkSampler textureSampler);
-		void UpdateUniformBuffer(uint32_t currentImage, float time, glm::vec3 camPos);
+		void SetUniformBuffer(uint32_t currentImage, vu::Transform modelTransform, glm::vec3 camPos);
 		void UpdateSwapChain(VkExtent2D swapChainExtent);
 		void BindMaterial(VkCommandBuffer commandBuffer, uint32_t currentFrame, PushConstants &pushConstants);
 		void Destroy();

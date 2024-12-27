@@ -176,8 +176,9 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="src\material.cpp" />
+    <ClCompile Include="src\transform.cpp" />
     <ClCompile Include="src\vu.cpp" />
-    <ClCompile Include="src\main.cpp" />
+    <ClCompile Include="src\renderer.cpp" />
     <ClCompile Include="src\mesh.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -187,6 +188,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\material.h" />
+    <ClInclude Include="src\transform.h" />
     <ClInclude Include="src\vu.h" />
     <ClInclude Include="src\mesh.h" />
   </ItemGroup>
