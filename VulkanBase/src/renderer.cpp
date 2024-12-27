@@ -102,6 +102,7 @@ private:
 		material2.Initialize(allocator, surface, swapChainImageFormat, MAX_FRAMES_IN_FLIGHT, physicalDevice, device, swapChainExtent, msaaSamples, renderPass);
 		transform1 = vu::Transform(glm::vec3(0.0, 0.0, 0.0));
 		transform2 = vu::Transform(glm::vec3(0.0, 2.0, 0.0));
+		camTransform = vu::Transform(glm::vec3(0.0, 2.0, 0.0));
 		createCommandBuffers();
 		createSyncObjects();
 	}
@@ -162,6 +163,39 @@ private:
 		if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
 			glfwSetWindowShouldClose(window, true);
 		}
+
+
+		if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
+			camTransform.SetPosition(camTransform.GetPosition() + camTransform.GetForward() * camSpeed * deltaTime);
+		}
+		if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
+			camTransform.SetPosition(camTransform.GetPosition() - camTransform.GetForward() * camSpeed * deltaTime);
+		}
+		if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
+			camTransform.SetPosition(camTransform.GetPosition() - camTransform.GetRight() * camSpeed * deltaTime);
+		}
+		if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
+			camTransform.SetPosition(camTransform.GetPosition() + camTransform.GetRight() * camSpeed * deltaTime);
+		}
+	}
+
+	static void sendMouseCallbackToInstance(GLFWwindow* window, double xpos, double ypos) {
+		if (Renderer *renderer = reinterpret_cast<Renderer*>(glfwGetWindowUserPointer(window))) {
+			renderer->processMouseInput(xpos, ypos);
+		}
+	}
+
+	void processMouseInput(double xpos, double ypos) {
+		float offsetX = xpos - lastX;
+		float offsetY = ypos - lastY;
+		lastX = xpos;
+		lastY = ypos;
+
+		offsetX *= sensitivity;
+		offsetY *= sensitivity;
+
+		camTransform.RotateZ(offsetX);
+		camTransform.RotateY(offsetY);
 	}
 
 	void initWindow() {
@@ -174,6 +208,10 @@ private:
 		window = glfwCreateWindow(WIDTH, HEIGHT, "Vulkan", nullptr, nullptr);
 		glfwSetWindowUserPointer(window, this);
 		glfwSetFramebufferSizeCallback(window, framebufferResizeCallback);
+
+		// focus mouse and hide cursor (like fps)
+		glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+		glfwSetCursorPosCallback(window, sendMouseCallbackToInstance);
 	}
 
 	void createInstance() {
@@ -856,10 +894,10 @@ private:
 
 		// update push constants
 		vu::PushConstants pushConstants{};
-		pushConstants.data.x = time;
-		pushConstants.data.y = camPos.x;
-		pushConstants.data.z = camPos.y;
-		pushConstants.data.w = camPos.z;
+		pushConstants.data.x = currentFrameTime;
+		pushConstants.data.y = camTransform.GetPosition().x;
+		pushConstants.data.z = camTransform.GetPosition().y;
+		pushConstants.data.w = camTransform.GetPosition().z;
 
 		// bind vertex and index buffers and draw mesh
 		material1.BindMaterial(commandBuffer, currentFrame, pushConstants);
@@ -1375,15 +1413,22 @@ private:
 		static auto startTime = std::chrono::high_resolution_clock::now();
 
 		auto currentTime = std::chrono::high_resolution_clock::now();
-		time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
+		currentFrameTime = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
+		deltaTime = currentFrameTime - lastFrameTime;
+		lastFrameTime = currentFrameTime;
 	}
 
 	void updateTransforms(uint32_t currentImage) {
-		transform1.SetRotation(glm::rotate(glm::mat4(1.0), time * glm::radians(90.0f) * 0.2f, glm::vec3(0.0f, 0.0f, 1.0f)));
-		transform1.SetScale(glm::vec3(1.0f, 1.0f, glm::sin(time * 2.0) * 0.3 + 0.7));
+		const float radius = 10.0f;
+		float camX = sin(currentFrameTime) * radius;
+		float camY = cos(currentFrameTime) * radius;
+		glm::mat4 view = glm::lookAt(camTransform.GetPosition(), camTransform.GetPosition() + camTransform.GetForward(), camTransform.GetUp());
 
-		material1.SetUniformBuffer(currentImage, transform1, camPos);
-		material2.SetUniformBuffer(currentImage, transform2, camPos);
+		//transform1.SetRotation(glm::rotate(glm::mat4(1.0), time * glm::radians(90.0f) * 0.2f, glm::vec3(0.0f, 0.0f, 1.0f)));
+		transform1.SetScale(glm::vec3(1.0f, 1.0f, glm::sin(currentFrameTime * 2.0) * 0.3 + 0.7));
+
+		material1.SetUniformBuffer(currentImage, transform1, view);
+		material2.SetUniformBuffer(currentImage, transform2, view);
 	}
 
 	void drawFrame() {
@@ -1513,8 +1558,16 @@ private:
 	VkImageView colorImageView;
 
 	uint32_t currentFrame = 0;
-	float time = 0.0f;
-	glm::vec3 camPos = glm::vec3(3.0f, 3.0f, 3.0f);
+	float lastFrameTime = 0.0f;
+	float currentFrameTime = 0.0f;
+	float deltaTime = 0.0f;
+
+	float lastX = WIDTH / 2.0f;
+	float lastY = HEIGHT / 2.0f;
+	float sensitivity = 0.005f;
+
+	vu::Transform camTransform;
+	const float camSpeed = 2.0f;
 
 	bool framebufferResized = false;
 };

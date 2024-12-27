@@ -12,21 +12,21 @@ namespace vu {
 		Transform() : 
 			m_position(0.0f), 
 			m_scale(1.0f), 
-			m_rotation(1.0f) {};
+			m_rotation(0.0f) {};
 
 		Transform(glm::vec3 position) :
 			m_position(position),
 			m_scale(1.0f),
-			m_rotation(1.0f) {};
+			m_rotation(0.0f) {};
 
 		Transform(glm::vec3 position, glm::mat4 rotation, glm::vec3 scale) : 
 			m_position(position), 
 			m_scale(scale), 
-			m_rotation(rotation) {};
+			m_rotation(0.0f) {};
 
 		void SetPosition(glm::vec3 position);
 		void SetScale(glm::vec3 scale);
-		void SetRotation(glm::mat4 rotation);
+		void SetRotation(glm::vec3 rotation);
 
 		void RotateX(float radians);
 		void RotateY(float radians);
@@ -34,13 +34,16 @@ namespace vu {
 
 		glm::vec3 GetPosition()    const;
 		glm::vec3 GetScale()       const;
-		glm::mat4 GetRotation()    const;
+		glm::vec3 GetRotation()    const;
 		glm::mat4 GetModelMatrix() const;
+		glm::vec3 GetForward()     const;
+		glm::vec3 GetUp()          const;
+		glm::vec3 GetRight()       const;
 
 	private:
 		glm::vec3 m_position;
 		glm::vec3 m_scale;
-		glm::mat4 m_rotation;
+		glm::vec3 m_rotation;
 	};
 }
 
