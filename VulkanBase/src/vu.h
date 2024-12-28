@@ -19,6 +19,13 @@
 
 namespace vu {
 
+	// Need this struct to check if our surface is compatible with swap-chain
+	struct SwapChainSupportDetails {
+		VkSurfaceCapabilitiesKHR capabilities;
+		std::vector<VkSurfaceFormatKHR> formats;
+		std::vector<VkPresentModeKHR> presentModes;
+	};
+
 	struct PushConstants {
 		glm::vec4 data;  // x - time, yzw - camPos
 	};
