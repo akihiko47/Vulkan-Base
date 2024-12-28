@@ -27,10 +27,13 @@ void main() {
     vec4 albedo = texture(texSampler, fragTexCoord);
 
     // light
+    vec3 lightDir = normalize(vec3(2.0, 3.0, 1.0));
     vec3 lightPos = vec3(0.0, 0.0, 0.5);
-    vec3 lightCol = vec3(1.0, 0.9, 0.7) * ((sin(time) * 0.5 + 0.5) * 0.2 + 0.2);
+    vec3 lightCol = vec3(1.0, 0.95, 0.9);
 
-    vec3 L = normalize(lightPos - worldPos);
+    // vec3 L = normalize(lightPos - worldPos);  // for point light
+    vec3 L = lightDir;
+
     vec3 V = normalize(camPos - worldPos);
     vec3 H = normalize(L + V);
     
@@ -42,7 +45,7 @@ void main() {
     vec3 ka = vec3(0.17, 0.12, 0.19) * 0.5;
     float q = 500.0;
 
-    col = (kd * max(0.0, dot(N, L) * 0.5 + 0.5) + ks * pow(max(0.0, dot(N, H)), q)) * atten * lightCol;
+    col = (kd * max(0.0, dot(N, L) * 0.5 + 0.5) + ks * pow(max(0.0, dot(N, H)), q)) * lightCol;
     col += ka;
 
     outColor = vec4(col, 1.0);
