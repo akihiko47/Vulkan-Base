@@ -350,12 +350,12 @@ void  Material::UpdateSwapChain(VkExtent2D swapChainExtent) {
 }
 
 
-void Material::SetUniformBuffer(uint32_t currentImage, vu::Transform modelTransform, glm::mat4 view) {
+void Material::SetUniformBuffer(uint32_t currentImage, vu::Transform modelTransform, glm::mat4 view, glm::mat4 proj) {
 
 	UniformBufferObject ubo{};
 	ubo.model = modelTransform.GetModelMatrix();
 	ubo.view = view;
-	ubo.proj = glm::perspective(glm::radians(30.0f), (float)m_swapChainExtent.width / (float)m_swapChainExtent.height, 0.1f, 100.0f);
+	ubo.proj = proj;
 	ubo.proj[1][1] *= -1;
 
 	memcpy(m_uniformAllocationInfos[currentImage].pMappedData, &ubo, sizeof(ubo));

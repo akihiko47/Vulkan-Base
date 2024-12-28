@@ -101,8 +101,8 @@ private:
 		material1.Initialize(allocator, surface, swapChainImageFormat, MAX_FRAMES_IN_FLIGHT, physicalDevice, device, swapChainExtent, msaaSamples, renderPass);
 		material2.Initialize(allocator, surface, swapChainImageFormat, MAX_FRAMES_IN_FLIGHT, physicalDevice, device, swapChainExtent, msaaSamples, renderPass);
 		transform1 = vu::Transform(glm::vec3(0.0, 0.0, 0.0));
-		transform2 = vu::Transform(glm::vec3(0.0, 2.0, 0.0));
-		camTransform = vu::Transform(glm::vec3(0.0, 2.0, 0.0));
+		transform2 = vu::Transform(glm::vec3(2.0, 0.0, 0.0));
+		camTransform = vu::Transform(glm::vec3(0.0, 0.0, 0.0));
 		createCommandBuffers();
 		createSyncObjects();
 	}
@@ -164,18 +164,22 @@ private:
 			glfwSetWindowShouldClose(window, true);
 		}
 
+		float currentCamSpeed = camSpeed;
+		if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS) {
+			currentCamSpeed *= 5.0f;
+		}
 
 		if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
-			camTransform.SetPosition(camTransform.GetPosition() + camTransform.GetForward() * camSpeed * deltaTime);
+			camTransform.SetPosition(camTransform.GetPosition() + camTransform.GetForward() * currentCamSpeed * deltaTime);
 		}
 		if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
-			camTransform.SetPosition(camTransform.GetPosition() - camTransform.GetForward() * camSpeed * deltaTime);
+			camTransform.SetPosition(camTransform.GetPosition() - camTransform.GetForward() * currentCamSpeed * deltaTime);
 		}
 		if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
-			camTransform.SetPosition(camTransform.GetPosition() - camTransform.GetRight() * camSpeed * deltaTime);
+			camTransform.SetPosition(camTransform.GetPosition() - camTransform.GetRight() * currentCamSpeed * deltaTime);
 		}
 		if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
-			camTransform.SetPosition(camTransform.GetPosition() + camTransform.GetRight() * camSpeed * deltaTime);
+			camTransform.SetPosition(camTransform.GetPosition() + camTransform.GetRight() * currentCamSpeed * deltaTime);
 		}
 	}
 
@@ -187,15 +191,15 @@ private:
 
 	void processMouseInput(double xpos, double ypos) {
 		float offsetX = xpos - lastX;
-		float offsetY = ypos - lastY;
+		float offsetY = lastY - ypos;
 		lastX = xpos;
 		lastY = ypos;
 
-		offsetX *= sensitivity;
 		offsetY *= sensitivity;
+		offsetX *= sensitivity;
 
-		camTransform.RotateZ(offsetX);
-		camTransform.RotateY(offsetY);
+		camTransform.RotateX(offsetY);
+		camTransform.RotateY(offsetX);
 	}
 
 	void initWindow() {
@@ -1422,13 +1426,14 @@ private:
 		const float radius = 10.0f;
 		float camX = sin(currentFrameTime) * radius;
 		float camY = cos(currentFrameTime) * radius;
-		glm::mat4 view = glm::lookAt(camTransform.GetPosition(), camTransform.GetPosition() + camTransform.GetForward(), camTransform.GetUp());
+		glm::mat4 view = glm::lookAt(camTransform.GetPosition(), camTransform.GetPosition() + camTransform.GetForward(), glm::vec3(0.0f, 1.0f, 0.0f));
+		glm::mat4 proj = glm::perspective(glm::radians(60.0f), (float)swapChainExtent.width / (float)swapChainExtent.height, 0.1f, 100.0f);
 
 		//transform1.SetRotation(glm::rotate(glm::mat4(1.0), time * glm::radians(90.0f) * 0.2f, glm::vec3(0.0f, 0.0f, 1.0f)));
 		transform1.SetScale(glm::vec3(1.0f, 1.0f, glm::sin(currentFrameTime * 2.0) * 0.3 + 0.7));
 
-		material1.SetUniformBuffer(currentImage, transform1, view);
-		material2.SetUniformBuffer(currentImage, transform2, view);
+		material1.SetUniformBuffer(currentImage, transform1, view, proj);
+		material2.SetUniformBuffer(currentImage, transform2, view, proj);
 	}
 
 	void drawFrame() {
@@ -1564,7 +1569,7 @@ private:
 
 	float lastX = WIDTH / 2.0f;
 	float lastY = HEIGHT / 2.0f;
-	float sensitivity = 0.005f;
+	float sensitivity = 0.1f;
 
 	vu::Transform camTransform;
 	const float camSpeed = 2.0f;

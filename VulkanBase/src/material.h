@@ -29,7 +29,7 @@ namespace vu {
 			VkRenderPass renderPass
 		);
 		void SetResourses(VkShaderModule vertShaderModule, VkShaderModule fragShaderModule, VkImageView textureImageView, VkSampler textureSampler);
-		void SetUniformBuffer(uint32_t currentImage, vu::Transform modelTransform, glm::mat4 view);
+		void SetUniformBuffer(uint32_t currentImage, vu::Transform modelTransform, glm::mat4 view, glm::mat4 proj);
 		void UpdateSwapChain(VkExtent2D swapChainExtent);
 		void BindMaterial(VkCommandBuffer commandBuffer, uint32_t currentFrame, PushConstants &pushConstants);
 		void Destroy();

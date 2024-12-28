@@ -60,19 +60,22 @@ glm::mat4 Transform::GetModelMatrix() const {
 
 
 glm::vec3 Transform::GetForward() const {
-	glm::mat4 viewInv = glm::inverse(GetModelMatrix());
-	glm::vec3 forward = glm::normalize(glm::vec3(viewInv[2]));
+	glm::vec3 forward;
+	forward.x = cos(glm::radians(m_rotation.y)) * cos(glm::radians(m_rotation.x));
+	forward.y = sin(glm::radians(m_rotation.x));
+	forward.z = sin(glm::radians(m_rotation.y)) * cos(glm::radians(m_rotation.x));
+	forward = glm::normalize(forward);
 	return forward;
 }
 
 
 glm::vec3 Transform::GetUp() const {
-	glm::vec3 up = glm::cross(GetForward(), GetRight());
+	glm::vec3 up = glm::normalize(glm::cross(GetForward(), GetRight()));
 	return up;
 }
 
 glm::vec3 Transform::GetRight() const {
-	glm::vec3 up = glm::vec3(0.0f, 0.0f, 1.0f);
-	glm::vec3 right = glm::normalize(glm::cross(up, GetForward()));
+	glm::vec3 up = glm::vec3(0.0f, 1.0f, 0.0f);
+	glm::vec3 right = glm::normalize(glm::cross(GetForward(), up));
 	return right;
 }
