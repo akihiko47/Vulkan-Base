@@ -6,6 +6,8 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtx/hash.hpp>
 
+#include "vu.h"
+
 namespace vu {
 	class Transform {
 	public:
@@ -39,6 +41,8 @@ namespace vu {
 		glm::vec3 GetForward()     const;
 		glm::vec3 GetUp()          const;
 		glm::vec3 GetRight()       const;
+
+		void BindModelMatrix(VkCommandBuffer commandBuffer, VkPipelineLayout pipelineLayout) const;
 
 	private:
 		glm::vec3 m_position;

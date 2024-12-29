@@ -1,9 +1,13 @@
 #version 450
 
-layout(binding = 1) uniform sampler2D texSampler;
+layout(set = 1, binding = 0) uniform sampler2D texSampler;
 
 layout(push_constant) uniform pc {
-    vec4 pcData;
+    layout(offset = 64)
+    vec4 pcData1;  // x - time, yzw - camPos
+    vec4 pcData2;
+    vec4 pcData3;
+    vec4 pcData4;
 };
 
 layout(location = 0) in vec3 fragNormal;
@@ -14,8 +18,8 @@ layout(location = 0) out vec4 outColor;
 
 void main() {
     // push constants
-    float time = pcData.x;
-    vec3 camPos = pcData.yzw;
+    float time = pcData1.x;
+    vec3 camPos = pcData1.yzw;
 
     // main color
     vec3 col = vec3(0.0, 0.0, 0.0);

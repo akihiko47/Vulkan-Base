@@ -29,17 +29,9 @@ namespace vu {
 			VkRenderPass renderPass
 		);
 		void SetResourses(VkShaderModule vertShaderModule, VkShaderModule fragShaderModule, VkImageView textureImageView, VkSampler textureSampler);
-		void SetUniformBuffer(uint32_t currentImage, vu::Transform modelTransform, glm::mat4 view, glm::mat4 proj);
-		void UpdateSwapChain(VkExtent2D swapChainExtent);
-		void BindMaterial(VkCommandBuffer commandBuffer, uint32_t currentFrame, PushConstants &pushConstants);
-		void Destroy();
 
 	private:
-		void CreateDescriptorSetLayout();
-		void CreateGraphicsPipeline();
-		void CreateDescriptorPool();
-		void CreateDescriptorSets();
-		void CreateUniformBuffers();
+
 
 		// resources
 		VkImageView    m_textureImageView;
@@ -57,16 +49,6 @@ namespace vu {
 		VkExtent2D            m_swapChainExtent;
 		VkSampleCountFlagBits m_msaaSamples;
 		VkRenderPass          m_renderPass;
-
-		// creating these variables
-		VkDescriptorSetLayout          m_descriptorSetLayout;
-		VkPipelineLayout               m_pipelineLayout;
-		VkPipeline                     m_graphicsPipeline;
-		VkDescriptorPool               m_descriptorPool;
-		std::vector<VkBuffer>          m_uniformBuffers;
-		std::vector<VmaAllocation>     m_uniformAllocations;
-		std::vector<VmaAllocationInfo> m_uniformAllocationInfos;
-		std::vector<VkDescriptorSet>   m_descriptorSets;
 	};
 
 }

@@ -79,3 +79,13 @@ glm::vec3 Transform::GetRight() const {
 	glm::vec3 right = glm::normalize(glm::cross(GetForward(), up));
 	return right;
 }
+
+
+void Transform::BindModelMatrix(VkCommandBuffer commandBuffer, VkPipelineLayout pipelineLayout) const {
+	// update global push constants
+	vu::PushConstants pushConstants{};
+	pushConstants.model = GetModelMatrix();
+
+	// bind global push constants
+	vkCmdPushConstants(commandBuffer, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, 64, &pushConstants);
+}

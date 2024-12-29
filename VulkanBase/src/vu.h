@@ -27,11 +27,14 @@ namespace vu {
 	};
 
 	struct PushConstants {
-		glm::vec4 data;  // x - time, yzw - camPos
+		glm::mat4 model;
+		glm::vec4 data1;  // x - time, yzw - camPos
+		glm::vec4 data2;
+		glm::vec4 data3; 
+		glm::vec4 data4;
 	};
 
-	struct UniformBufferObject {
-		glm::mat4 model;
+	struct VPubo {
 		glm::mat4 view;
 		glm::mat4 proj;
 	};
