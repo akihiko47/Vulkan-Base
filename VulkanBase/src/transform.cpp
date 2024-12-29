@@ -83,7 +83,7 @@ glm::vec3 Transform::GetRight() const {
 
 void Transform::BindModelMatrix(VkCommandBuffer commandBuffer, VkPipelineLayout pipelineLayout) const {
 	// update global push constants
-	vu::PushConstants pushConstants{};
+	vu::PushConstantsLocal pushConstants{};
 	pushConstants.model = GetModelMatrix();
 
 	// bind global push constants

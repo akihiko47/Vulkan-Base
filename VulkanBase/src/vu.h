@@ -26,12 +26,15 @@ namespace vu {
 		std::vector<VkPresentModeKHR> presentModes;
 	};
 
-	struct PushConstants {
-		glm::mat4 model;
+	struct PushConstantsGlobal {
 		glm::vec4 data1;  // x - time, yzw - camPos
 		glm::vec4 data2;
-		glm::vec4 data3; 
+		glm::vec4 data3;
 		glm::vec4 data4;
+	};
+
+	struct PushConstantsLocal {
+		glm::mat4 model;
 	};
 
 	struct VPubo {
