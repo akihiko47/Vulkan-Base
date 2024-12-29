@@ -36,7 +36,8 @@
 const uint32_t WIDTH = 800;
 const uint32_t HEIGHT = 600;
 
-const std::string TEXTURE_PATH = "textures/viking_room.png";
+const std::string TEXTURE_PATH1 = "textures/viking_room.png";
+const std::string TEXTURE_PATH2 = "textures/viking_room.png";
 
 const int MAX_FRAMES_IN_FLIGHT = 2;
 
@@ -84,8 +85,10 @@ namespace vu {
 			CreateDepthResources();
 			CreateColorResources();
 			CreateFrameBuffers();
-			CreateTextureImage();
-			CreateTextureImageView();
+
+			CreateTextureImages();
+			CreateTextureImageViews();
+
 			CreateTextureSampler();
 			CreateShaderModules();
 
@@ -98,10 +101,6 @@ namespace vu {
 
 			mesh1.Load("models/viking_room.obj", allocator, device, physicalDevice, surface, transferCommandPool, transferQueue);
 			mesh2.Load("models/tree.obj", allocator, device, physicalDevice, surface, transferCommandPool, transferQueue);
-			material1.SetResourses(vertShaderModule, fragShaderModule, textureImageView, textureSampler);
-			material2.SetResourses(vertShaderModule, fragShaderModule, textureImageView, textureSampler);
-			material1.Initialize(allocator, surface, swapChainImageFormat, MAX_FRAMES_IN_FLIGHT, physicalDevice, device, swapChainExtent, msaaSamples, renderPass);
-			material2.Initialize(allocator, surface, swapChainImageFormat, MAX_FRAMES_IN_FLIGHT, physicalDevice, device, swapChainExtent, msaaSamples, renderPass);
 			transform1 = vu::Transform(glm::vec3(0.0, 0.0, 0.0));
 			transform2 = vu::Transform(glm::vec3(2.0, 0.0, 0.0));
 			camTransform = vu::Transform(glm::vec3(0.0, 0.0, 0.0));
@@ -125,8 +124,12 @@ namespace vu {
 			cleanupSwapChain();
 
 			vkDestroySampler(device, textureSampler, nullptr);
-			vkDestroyImageView(device, textureImageView, nullptr);
-			vmaDestroyImage(allocator, textureImage, textureImageAllocation);
+
+			vkDestroyImageView(device, textureImageView1, nullptr);
+			vmaDestroyImage(allocator, textureImage1, textureImageAllocation1);
+
+			vkDestroyImageView(device, textureImageView2, nullptr);
+			vmaDestroyImage(allocator, textureImage2, textureImageAllocation2);
 
 			for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
 				vmaDestroyBuffer(allocator, uniformBuffers[i], uniformAllocations[i]);
@@ -962,14 +965,18 @@ namespace vu {
 			vkCmdPushConstants(commandBuffer, pipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 64, 64, &pushConstants);
 
 			// bind global descriptors
-			vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets.data()[currentFrame], 0, nullptr);
+			vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSetsGlobal.data()[currentFrame], 0, nullptr);
 
-				// bind material descriptors
-				vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 1, 1, &descriptorSets.data()[currentFrame + MAX_FRAMES_IN_FLIGHT], 0, nullptr);
+				// bind material 1 descriptors
+				vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 1, 1, &descriptorSetsMat1.data()[currentFrame], 0, nullptr);
 
 					// bind model matrix constants and render
 					transform1.BindModelMatrix(commandBuffer, pipelineLayout);
 					mesh1.BindAndRender(commandBuffer);
+
+
+				// bind material 2 descriptors
+				vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 1, 1, &descriptorSetsMat2.data()[currentFrame], 0, nullptr);
 
 					//material2.BindMaterial(commandBuffer, currentFrame, pushConstants);
 					transform2.BindModelMatrix(commandBuffer, pipelineLayout);
@@ -1166,13 +1173,13 @@ namespace vu {
 			poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 			poolSizes[0].descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
 			poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-			poolSizes[1].descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
+			poolSizes[1].descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT * 2);
 
 			VkDescriptorPoolCreateInfo poolInfo{};
 			poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
 			poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
 			poolInfo.pPoolSizes = poolSizes.data();
-			poolInfo.maxSets = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT * 2);
+			poolInfo.maxSets = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT * 3);
 
 			if (vkCreateDescriptorPool(device, &poolInfo, nullptr, &descriptorPool) != VK_SUCCESS) {
 				throw std::runtime_error("failed to create descriptor pool!");
@@ -1204,25 +1211,44 @@ namespace vu {
 
 		void CreateDescriptorSets() {
 			// allocate descriptor sets
-			std::vector<VkDescriptorSetLayout> layouts{};
-			layouts.reserve(MAX_FRAMES_IN_FLIGHT * 2);
-			for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-				layouts.emplace_back(descriptorSetLayoutGlobal);
-			}
-			for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-				layouts.emplace_back(descriptorSetLayoutLocal);
-			}
+			std::vector<VkDescriptorSetLayout> layoutsGlobal{MAX_FRAMES_IN_FLIGHT, descriptorSetLayoutGlobal};
+			std::vector<VkDescriptorSetLayout> layoutsMat1{MAX_FRAMES_IN_FLIGHT, descriptorSetLayoutLocal};
+			std::vector<VkDescriptorSetLayout> layoutsMat2{MAX_FRAMES_IN_FLIGHT, descriptorSetLayoutLocal};
 
+			// global
 			VkDescriptorSetAllocateInfo allocInfo{};
 			allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
 			allocInfo.descriptorPool = descriptorPool;
-			allocInfo.descriptorSetCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT * 2);
-			allocInfo.pSetLayouts = layouts.data();
+			allocInfo.descriptorSetCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
+			allocInfo.pSetLayouts = layoutsGlobal.data();
 
-			descriptorSets.resize(MAX_FRAMES_IN_FLIGHT * 2);
-			if (vkAllocateDescriptorSets(device, &allocInfo, descriptorSets.data()) != VK_SUCCESS) {
+			descriptorSetsGlobal.resize(MAX_FRAMES_IN_FLIGHT);
+			if (vkAllocateDescriptorSets(device, &allocInfo, descriptorSetsGlobal.data()) != VK_SUCCESS) {
 				throw std::runtime_error("failed to allocate descriptor sets!");
 			}
+
+			// material 1
+			allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+			allocInfo.descriptorPool = descriptorPool;
+			allocInfo.descriptorSetCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
+			allocInfo.pSetLayouts = layoutsMat1.data();
+
+			descriptorSetsMat1.resize(MAX_FRAMES_IN_FLIGHT);
+			if (vkAllocateDescriptorSets(device, &allocInfo, descriptorSetsMat1.data()) != VK_SUCCESS) {
+				throw std::runtime_error("failed to allocate descriptor sets!");
+			}
+
+			// material 2
+			allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+			allocInfo.descriptorPool = descriptorPool;
+			allocInfo.descriptorSetCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
+			allocInfo.pSetLayouts = layoutsMat2.data();
+
+			descriptorSetsMat2.resize(MAX_FRAMES_IN_FLIGHT);
+			if (vkAllocateDescriptorSets(device, &allocInfo, descriptorSetsMat2.data()) != VK_SUCCESS) {
+				throw std::runtime_error("failed to allocate descriptor sets!");
+			}
+
 
 			// populate sets with data
 			for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
@@ -1231,15 +1257,20 @@ namespace vu {
 				bufferInfo.offset = 0;
 				bufferInfo.range = sizeof(vu::VPubo);
 
-				VkDescriptorImageInfo imageInfo{};
-				imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-				imageInfo.imageView = textureImageView;
-				imageInfo.sampler = textureSampler;
+				VkDescriptorImageInfo imageInfo1{};
+				imageInfo1.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+				imageInfo1.imageView = textureImageView1;
+				imageInfo1.sampler = textureSampler;
+
+				VkDescriptorImageInfo imageInfo2{};
+				imageInfo2.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+				imageInfo2.imageView = textureImageView2;
+				imageInfo2.sampler = textureSampler;
 
 				// global descriptor (VP matrix)
 				std::array<VkWriteDescriptorSet, 1> descriptorWritesGlobal{};
 				descriptorWritesGlobal[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-				descriptorWritesGlobal[0].dstSet = descriptorSets[i];
+				descriptorWritesGlobal[0].dstSet = descriptorSetsGlobal[i];
 				descriptorWritesGlobal[0].dstBinding = 0;
 				descriptorWritesGlobal[0].dstArrayElement = 0;
 				descriptorWritesGlobal[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
@@ -1248,17 +1279,29 @@ namespace vu {
 
 				vkUpdateDescriptorSets(device, static_cast<uint32_t>(descriptorWritesGlobal.size()), descriptorWritesGlobal.data(), 0, nullptr);
 
-				// local descriptor (images and such)
-				std::array<VkWriteDescriptorSet, 1> descriptorWritesLocal{};
-				descriptorWritesLocal[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-				descriptorWritesLocal[0].dstSet = descriptorSets[i + MAX_FRAMES_IN_FLIGHT];
-				descriptorWritesLocal[0].dstBinding = 0;
-				descriptorWritesLocal[0].dstArrayElement = 0;
-				descriptorWritesLocal[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-				descriptorWritesLocal[0].descriptorCount = 1;
-				descriptorWritesLocal[0].pImageInfo = &imageInfo;
+				// local descriptor (images and such) material 1
+				std::array<VkWriteDescriptorSet, 1> descriptorWritesLocal1{};
+				descriptorWritesLocal1[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+				descriptorWritesLocal1[0].dstSet = descriptorSetsMat1[i];
+				descriptorWritesLocal1[0].dstBinding = 0;
+				descriptorWritesLocal1[0].dstArrayElement = 0;
+				descriptorWritesLocal1[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+				descriptorWritesLocal1[0].descriptorCount = 1;
+				descriptorWritesLocal1[0].pImageInfo = &imageInfo1;
 
-				vkUpdateDescriptorSets(device, static_cast<uint32_t>(descriptorWritesLocal.size()), descriptorWritesLocal.data(), 0, nullptr);
+				vkUpdateDescriptorSets(device, static_cast<uint32_t>(descriptorWritesLocal1.size()), descriptorWritesLocal1.data(), 0, nullptr);
+
+				// local descriptor (images and such) material 1
+				std::array<VkWriteDescriptorSet, 1> descriptorWritesLocal2{};
+				descriptorWritesLocal2[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+				descriptorWritesLocal2[0].dstSet = descriptorSetsMat2[i];
+				descriptorWritesLocal2[0].dstBinding = 0;
+				descriptorWritesLocal2[0].dstArrayElement = 0;
+				descriptorWritesLocal2[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+				descriptorWritesLocal2[0].descriptorCount = 1;
+				descriptorWritesLocal2[0].pImageInfo = &imageInfo2;
+
+				vkUpdateDescriptorSets(device, static_cast<uint32_t>(descriptorWritesLocal2.size()), descriptorWritesLocal2.data(), 0, nullptr);
 			}
 		}
 
@@ -1570,9 +1613,14 @@ namespace vu {
 			vu::endSingleTimeCommands(commandBufferGraphics, graphicsCommandPool, device, transferQueue);
 		}
 
-		void CreateTextureImage() {
+		void CreateTextureImages() {
+			CreateTextureImage("textures/viking_room.png", mipLevels1, textureImage1, textureImageAllocation1, textureImageAllocationInfo1);
+			CreateTextureImage("textures/gradient.png", mipLevels2, textureImage2, textureImageAllocation2, textureImageAllocationInfo2);
+		}
+
+		void CreateTextureImage(const std::string &imagePath, uint32_t &mipLevels, VkImage &image, VmaAllocation &textureImageAllocation, VmaAllocationInfo &textureImageAllocationInfo) {
 			int texWidth, texHeight, texChannels;
-			stbi_uc *pixels = stbi_load(TEXTURE_PATH.c_str(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
+			stbi_uc *pixels = stbi_load(imagePath.c_str(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
 			if (!pixels) {
 				throw std::runtime_error("failed to load texture image!");
 			}
@@ -1618,25 +1666,26 @@ namespace vu {
 			VmaAllocationCreateInfo allocInfo{};
 			allocInfo.usage = VMA_MEMORY_USAGE_AUTO;
 
-			vmaCreateImage(allocator, &imageInfo, &allocInfo, &textureImage, &textureImageAllocation, &textureImageAllocationInfo);
+			vmaCreateImage(allocator, &imageInfo, &allocInfo, &image, &textureImageAllocation, &textureImageAllocationInfo);
 
 			// copy staging buffer to image
 		
 			// undefined -> transfer
-			transitionImageLayout(textureImage, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, mipLevels);
+			transitionImageLayout(image, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, mipLevels);
 
 			// copy
-			copyBufferToImage(stagingBuffer, textureImage, static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight));
+			copyBufferToImage(stagingBuffer, image, static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight));
 
 			// generate mip-maps (will transition layout transfer -> shader)
-			generateMipmaps(textureImage, VK_FORMAT_R8G8B8A8_UNORM, texWidth, texHeight, mipLevels);
+			generateMipmaps(image, VK_FORMAT_R8G8B8A8_UNORM, texWidth, texHeight, mipLevels);
 
 			// destroy staging buffer
 			vmaDestroyBuffer(allocator, stagingBuffer, stagingAllocation);
 		}
 
-		void CreateTextureImageView() {
-			textureImageView = createImageView(textureImage, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_ASPECT_COLOR_BIT, mipLevels);
+		void CreateTextureImageViews() {
+			textureImageView1 = createImageView(textureImage1, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_ASPECT_COLOR_BIT, mipLevels1);
+			textureImageView2 = createImageView(textureImage2, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_ASPECT_COLOR_BIT, mipLevels2);
 		}
 
 		void CreateTextureSampler() {
@@ -1896,7 +1945,9 @@ namespace vu {
 		std::vector<VkBuffer>          uniformBuffers;
 		std::vector<VmaAllocation>     uniformAllocations;
 		std::vector<VmaAllocationInfo> uniformAllocationInfos;
-		std::vector<VkDescriptorSet>   descriptorSets;
+		std::vector<VkDescriptorSet>   descriptorSetsGlobal;
+		std::vector<VkDescriptorSet>   descriptorSetsMat1;
+		std::vector<VkDescriptorSet>   descriptorSetsMat2;
 
 		vu::Mesh mesh1;
 		vu::Mesh mesh2;
@@ -1907,11 +1958,18 @@ namespace vu {
 		vu::Transform transform1;
 		vu::Transform transform2;
 
-		uint32_t mipLevels;
-		VkImage textureImage;
-		VmaAllocation textureImageAllocation;
-		VmaAllocationInfo textureImageAllocationInfo;
-		VkImageView textureImageView;
+		VkImage textureImage1;
+		VmaAllocation textureImageAllocation1;
+		VmaAllocationInfo textureImageAllocationInfo1;
+		VkImageView textureImageView1;
+		uint32_t mipLevels1;
+
+		VkImage textureImage2;
+		VmaAllocation textureImageAllocation2;
+		VmaAllocationInfo textureImageAllocationInfo2;
+		VkImageView textureImageView2;
+		uint32_t mipLevels2;
+		
 		VkSampler textureSampler;
 
 		VkImage depthImage;
