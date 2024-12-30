@@ -29,6 +29,7 @@
 
 #include "mesh.h"
 #include "transform.h"
+#include "image.h"
 #include "vu.h"
 
 
@@ -102,7 +103,6 @@ namespace vu {
 		void CreateRenderPass();
 		void CreateColorResources();
 		void CreateDepthResources();
-		bool HasStencilComponent(VkFormat format);
 		RendererInfo CreateRendererInfo();
 		
 		// validation layers
@@ -145,12 +145,6 @@ namespace vu {
 
 		// image resouses (should be moved)
 		void CreateTextureImages();
-		void CreateTextureImageViews();
-		void CreateTextureImage(const std::string &imagePath, uint32_t &mipLevels, VkImage &image, VmaAllocation &textureImageAllocation, VmaAllocationInfo &textureImageAllocationInfo);
-		VkImageView CreateImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags, uint32_t mipLevels);
-		void TransitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t mipLevels);
-		void CopyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height);
-		void GenerateMipmaps(VkImage image, VkFormat imageFormat, int32_t texWidth, int32_t texHeight, uint32_t mipLevels);
 
 		// samplers
 		void CreateTextureSampler();
@@ -225,17 +219,8 @@ namespace vu {
 		vu::Transform transform1;
 		vu::Transform transform2;
 
-		VkImage textureImage1;
-		VmaAllocation textureImageAllocation1;
-		VmaAllocationInfo textureImageAllocationInfo1;
-		VkImageView textureImageView1;
-		uint32_t mipLevels1;
-
-		VkImage textureImage2;
-		VmaAllocation textureImageAllocation2;
-		VmaAllocationInfo textureImageAllocationInfo2;
-		VkImageView textureImageView2;
-		uint32_t mipLevels2;
+		vu::Image *image1;
+		vu::Image *image2;
 
 		VkSampler textureSampler;
 
