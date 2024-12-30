@@ -1,17 +1,17 @@
 #pragma once
 
+#include <array>
+#include <iostream>
+
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #define GLM_ENABLE_EXPERIMENTAL
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtx/hash.hpp>
+
 #include <vulkan/vulkan.h>
 
-#include <array>
-#include <iostream>
-
 #include "vu.h"
-#include "transform.h"
 
 namespace vu {
 

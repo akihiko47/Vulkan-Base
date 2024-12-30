@@ -2,34 +2,10 @@
 
 using namespace vu;
 
-void Mesh::Load(
-		const std::string &modelPath,
-		VmaAllocator      &allocator,
-		VkDevice          &device,
-		VkPhysicalDevice  &physicalDevice,
-		VkSurfaceKHR      &surface,
-		VkCommandPool     &copyCommandPool,
-		VkQueue           &copySubmitQueue){
-
-	m_modelPath       = modelPath;
-	m_allocator       = allocator;
-	m_device          = device;
-	m_physicalDevice  = physicalDevice;
-	m_surface         = surface;
-	m_copyCommandPool = copyCommandPool;
-	m_copySubmitQueue = copySubmitQueue;
-
-	LoadModel();
-	CreateVertexBuffer();
-	CreateIndexBuffer();
+void Mesh::Destroy(const RendererInfo &rendererInfo) {
+	vmaDestroyBuffer(rendererInfo.allocator, m_vertexBuffer, m_vertexAllocation);
+	vmaDestroyBuffer(rendererInfo.allocator, m_indexBuffer, m_indexAllocation);
 }
-
-
-void Mesh::Destroy() {
-	vmaDestroyBuffer(m_allocator, m_vertexBuffer, m_vertexAllocation);
-	vmaDestroyBuffer(m_allocator, m_indexBuffer, m_indexAllocation);
-}
-
 
 void Mesh::BindAndRender(VkCommandBuffer commandBuffer) {
 	// bind vertex buffer
@@ -45,7 +21,7 @@ void Mesh::BindAndRender(VkCommandBuffer commandBuffer) {
 }
 
 
-void Mesh::CreateVertexBuffer() {
+void Mesh::CreateVertexBuffer(const RendererInfo &rendererInfo) {
 	VkDeviceSize bufferSize = sizeof(m_vertices[0]) * m_vertices.size();
 
 	// staging buffer that is visible to cpu
@@ -54,9 +30,9 @@ void Mesh::CreateVertexBuffer() {
 	VmaAllocationInfo stagingAllocationInfo;
 
 	vu::createBuffer (
-		m_physicalDevice,
-		m_allocator,
-		m_surface,
+		rendererInfo.physicalDevice,
+		rendererInfo.allocator,
+		rendererInfo.surface,
 		bufferSize,
 		VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
 		VMA_MEMORY_USAGE_AUTO,
@@ -65,13 +41,13 @@ void Mesh::CreateVertexBuffer() {
 	);
 
 	// map gpu memory to cpu memory (can access gpu memory like normal)
-	vmaCopyMemoryToAllocation(m_allocator, m_vertices.data(), stagingAllocation, 0, bufferSize);
+	vmaCopyMemoryToAllocation(rendererInfo.allocator, m_vertices.data(), stagingAllocation, 0, bufferSize);
 
 	// vertex buffer that is not visible to cpu (faster local gpu memory)
 	vu::createBuffer (
-		m_physicalDevice,
-		m_allocator,
-		m_surface,
+		rendererInfo.physicalDevice,
+		rendererInfo.allocator,
+		rendererInfo.surface,
 		bufferSize,
 		VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
 		VMA_MEMORY_USAGE_AUTO,
@@ -80,24 +56,24 @@ void Mesh::CreateVertexBuffer() {
 	);
 
 	// move data from staging buffer to high performance vertex buffer
-	vu::copyBuffer(stagingBuffer, m_vertexBuffer, bufferSize, m_device, m_copyCommandPool, m_copySubmitQueue);
+	vu::copyBuffer(stagingBuffer, m_vertexBuffer, bufferSize, rendererInfo.device, rendererInfo.transferCommandPool, rendererInfo.transferQueue);
 
 	// free staging buffer
-	vmaDestroyBuffer(m_allocator, stagingBuffer, stagingAllocation);
+	vmaDestroyBuffer(rendererInfo.allocator, stagingBuffer, stagingAllocation);
 }
 
 
-void Mesh::CreateIndexBuffer() {
+void Mesh::CreateIndexBuffer(const RendererInfo &rendererInfo) {
 	VkDeviceSize bufferSize = sizeof(m_indices[0]) * m_indices.size();
 
 	// staging buffer that is visible to cpu
 	VkBuffer stagingBuffer;
 	VmaAllocation stagingAllocation;
 	VmaAllocationInfo stagingAllocationInfo;
-	vu::createBuffer(
-		m_physicalDevice,
-		m_allocator,
-		m_surface,
+	vu::createBuffer (
+		rendererInfo.physicalDevice,
+		rendererInfo.allocator,
+		rendererInfo.surface,
 		bufferSize,
 		VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
 		VMA_MEMORY_USAGE_AUTO,
@@ -106,13 +82,13 @@ void Mesh::CreateIndexBuffer() {
 	);
 
 	// map gpu memory to cpu memory (can access gpu memory like normal)
-	vmaCopyMemoryToAllocation(m_allocator, m_indices.data(), stagingAllocation, 0, bufferSize);
+	vmaCopyMemoryToAllocation(rendererInfo.allocator, m_indices.data(), stagingAllocation, 0, bufferSize);
 
 	// index buffer that is not visible to cpu (faster local gpu memory)
-	vu::createBuffer(
-		m_physicalDevice,
-		m_allocator,
-		m_surface, 
+	vu::createBuffer (
+		rendererInfo.physicalDevice,
+		rendererInfo.allocator,
+		rendererInfo.surface,
 		bufferSize,
 		VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
 		VMA_MEMORY_USAGE_AUTO,
@@ -121,10 +97,10 @@ void Mesh::CreateIndexBuffer() {
 	);
 
 	// move data from staging buffer to high performance index buffer
-	vu::copyBuffer(stagingBuffer, m_indexBuffer, bufferSize, m_device, m_copyCommandPool, m_copySubmitQueue);
+	vu::copyBuffer(stagingBuffer, m_indexBuffer, bufferSize, rendererInfo.device, rendererInfo.transferCommandPool, rendererInfo.transferQueue);
 
 	// free staging buffer
-	vmaDestroyBuffer(m_allocator, stagingBuffer, stagingAllocation);
+	vmaDestroyBuffer(rendererInfo.allocator, stagingBuffer, stagingAllocation);
 }
 
 

@@ -1,18 +1,19 @@
 #include "vu.h"
 
-void vu::createBuffer(
-		VkPhysicalDevice physicalDevice,
-		VmaAllocator allocator,
-		VkSurfaceKHR surface,
-		VkDeviceSize size,
-		VkBufferUsageFlags bufferUsage,
-		VmaMemoryUsage allocationUsage,
-		VmaAllocationCreateFlags allocationFlags,
-		VkBuffer &buffer,
-		VmaAllocation &allocation,
-		VmaAllocationInfo &allocationInfo) {
 
-	QueueFamilyIndices indices = findQueueFamilies(physicalDevice, surface);
+void vu::createBuffer(
+		VkPhysicalDevice         physicalDevice,
+		VmaAllocator             allocator,
+		VkSurfaceKHR             surface,
+		VkDeviceSize             size,
+		VkBufferUsageFlags       bufferUsage,
+		VmaMemoryUsage           allocationUsage,
+		VmaAllocationCreateFlags allocationFlags,
+		VkBuffer                 &buffer,
+		VmaAllocation            &allocation,
+		VmaAllocationInfo        &allocationInfo) {
+
+	vu::QueueFamilyIndices indices = vu::findQueueFamilies(physicalDevice, surface);
 	uint32_t queueFamilyIndices[] = {indices.graphicsFamily.value(), indices.transferFamily.value()};
 
 	VkBufferCreateInfo bufferInfo{};

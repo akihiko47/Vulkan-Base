@@ -1,22 +1,5 @@
 #pragma once
 
-#include "mesh.h"
-#include "material.h"
-
-#define VK_LOD_CLAMP_NONE 15.0f  // max mipmap level for sampler
-#define GLFW_INCLUDE_VULKAN
-#include <GLFW/glfw3.h>
-
-#define GLM_FORCE_DEPTH_ZERO_TO_ONE
-#define GLM_ENABLE_EXPERIMENTAL
-#include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
-#include <glm/gtx/hash.hpp>
-
-#include <VMA/vk_mem_alloc.h>
-#include <stb/stb_image.h>
-#include <tinyobjloader/tiny_obj_loader.h>
-
 #include <stdexcept>
 #include <cstdlib>
 #include <vector>
@@ -27,6 +10,26 @@
 #include <algorithm>
 #include <chrono>
 #include <unordered_map>
+
+#define VK_LOD_CLAMP_NONE 15.0f  // max mipmap level for sampler
+#define GLFW_INCLUDE_VULKAN
+#include <GLFW/glfw3.h>
+
+#include <vulkan/vulkan.h>
+#include <shaderc/shaderc.hpp>
+
+#include <stb/stb_image.h>        // move to image class
+#include <VMA/vk_mem_alloc.h>
+
+#define GLM_FORCE_DEPTH_ZERO_TO_ONE
+#define GLM_ENABLE_EXPERIMENTAL
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtx/hash.hpp>
+
+#include "mesh.h"
+#include "transform.h"
+#include "vu.h"
 
 
 const uint32_t WIDTH = 800;
@@ -61,7 +64,19 @@ namespace vu {
 		void Run();
 
 		// getters
-		VkInstance GetInstance() { return m_instance; }
+		VkInstance       GetInstance()             const { return m_instance; }
+		VkPhysicalDevice GetPhysicalDevice()       const { return m_physicalDevice; }
+		VkDevice         GetDevice()               const { return m_device; }
+		VkFormat         GetSwapChainImageFormat() const { return m_swapChainImageFormat; }
+		VkExtent2D       GetSwapChainExtent()      const { return m_swapChainExtent; }
+		VkSurfaceKHR     GetSurface()              const { return m_surface; }
+		VkRenderPass     GetRenderPass()           const { return m_renderPass; }
+		VmaAllocator     GetAllocator()            const { return m_allocator;}
+		VkCommandPool    GetGraphicsCommandPool()  const { return m_graphicsCommandPool; }
+		VkCommandPool    GetTransferCommandPool()  const { return m_transferCommandPool; }
+		VkQueue          GetGraphicsQueue()        const { return m_graphicsQueue; }
+		VkQueue			 GetPresentQueue()         const { return m_presentQueue; }
+		VkQueue          GetTransferQueue()        const { return m_transferQueue; }
 
 	private:
 		void InitWindow();
@@ -88,6 +103,7 @@ namespace vu {
 		void CreateColorResources();
 		void CreateDepthResources();
 		bool HasStencilComponent(VkFormat format);
+		RendererInfo CreateRendererInfo();
 		
 		// validation layers
 		void PopulateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT &createInfo);
@@ -156,39 +172,37 @@ namespace vu {
 		void SetGlobalPushConstants(VkCommandBuffer commandBuffer);
 
 
+		VkInstance               m_instance;
+		VkPhysicalDevice         m_physicalDevice;
+		VkDevice                 m_device;
+		VkSwapchainKHR           m_swapChain;
+		VkFormat                 m_swapChainImageFormat;
+		VkExtent2D               m_swapChainExtent;
+		VkSurfaceKHR             m_surface;
+		VkRenderPass             m_renderPass;
+		VmaAllocator             m_allocator;
+		VkDebugUtilsMessengerEXT m_debugMessenger;
+
+		RendererInfo *m_rendererInfo;
+
 		GLFWwindow *m_window;
-		VkInstance m_instance;
-		VkDebugUtilsMessengerEXT debugMessenger;
-		VkSurfaceKHR surface;
-		VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
-		VkDevice device;
 
-		VkQueue graphicsQueue = VK_NULL_HANDLE;
-		VkQueue presentQueue = VK_NULL_HANDLE;
-		VkQueue transferQueue = VK_NULL_HANDLE;
-
-		VmaAllocator allocator;
-
-		VkSwapchainKHR swapChain;
-		VkFormat swapChainImageFormat;
-		VkExtent2D swapChainExtent;
-		std::vector<VkImage> swapChainImages;
-		std::vector<VkImageView> swapChainImageViews;
+		VkQueue m_graphicsQueue;
+		VkQueue m_presentQueue;
+		VkQueue m_transferQueue;
+		
+		std::vector<VkImage>       swapChainImages;
+		std::vector<VkImageView>   swapChainImageViews;
 		std::vector<VkFramebuffer> swapChainFramebuffers;
 
-		VkRenderPass renderPass;
-
-		VkCommandPool graphicsCommandPool;
-		VkCommandPool transferCommandPool;
+		VkCommandPool m_graphicsCommandPool;
+		VkCommandPool m_transferCommandPool;
 		std::vector<VkCommandBuffer> graphicsCommandBuffers;
 		std::vector<VkCommandBuffer> transferCommandBuffers;
 
 		std::vector<VkSemaphore> imageAvailableSemaphores;
 		std::vector<VkSemaphore> renderFinishedSemaphores;
-		std::vector<VkFence> inFlightFences;
-
-		VkShaderModule vertShaderModule;
-		VkShaderModule fragShaderModule;
+		std::vector<VkFence>     inFlightFences;
 
 		VkDescriptorSetLayout          descriptorSetLayoutGlobal;
 		VkDescriptorSetLayout          descriptorSetLayoutLocal;
@@ -202,11 +216,11 @@ namespace vu {
 		std::vector<VkDescriptorSet>   descriptorSetsMat1;
 		std::vector<VkDescriptorSet>   descriptorSetsMat2;
 
-		vu::Mesh mesh1;
-		vu::Mesh mesh2;
+		VkShaderModule vertShaderModule;
+		VkShaderModule fragShaderModule;
 
-		vu::Material material1;
-		vu::Material material2;
+		vu::Mesh *mesh1;
+		vu::Mesh *mesh2;
 
 		vu::Transform transform1;
 		vu::Transform transform2;

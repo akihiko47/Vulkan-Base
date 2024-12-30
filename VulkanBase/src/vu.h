@@ -1,14 +1,5 @@
 #pragma once
 
-#define GLM_FORCE_DEPTH_ZERO_TO_ONE
-#define GLM_ENABLE_EXPERIMENTAL
-#include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
-#include <glm/gtx/hash.hpp>
-#include <vulkan/vulkan.h>
-#include <VMA/vk_mem_alloc.h>
-#include <shaderc/shaderc.hpp>
-
 #include <stdexcept>
 #include <optional>
 #include <vector>
@@ -17,7 +8,35 @@
 #include <fstream>
 
 
+#include <vulkan/vulkan.h>
+#include <VMA/vk_mem_alloc.h>
+#include <shaderc/shaderc.hpp>
+
+#define GLM_FORCE_DEPTH_ZERO_TO_ONE
+#define GLM_ENABLE_EXPERIMENTAL
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtx/hash.hpp>
+
 namespace vu {
+
+	struct RendererInfo {
+		VkInstance               instance;
+		VkPhysicalDevice         physicalDevice;
+		VkDevice                 device;
+		VkSwapchainKHR           swapChain;
+		VkFormat                 swapChainImageFormat;
+		VkExtent2D               swapChainExtent;
+		VkSurfaceKHR             surface;
+		VkRenderPass             renderPass;
+		VmaAllocator             allocator;
+		VkDebugUtilsMessengerEXT debugMessenger;
+		VkCommandPool			 graphicsCommandPool;
+		VkCommandPool			 transferCommandPool;
+		VkQueue					 graphicsQueue;
+		VkQueue					 presentQueue;
+		VkQueue					 transferQueue;
+	};
 
 	// Need this struct to check if our surface is compatible with swap-chain
 	struct SwapChainSupportDetails {
@@ -104,7 +123,7 @@ namespace vu {
 		}
 	};
 
-	void createBuffer (
+	void createBuffer(
 		VkPhysicalDevice         physicalDevice,
 		VmaAllocator             allocator,
 		VkSurfaceKHR             surface,

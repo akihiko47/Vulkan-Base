@@ -1,3 +1,5 @@
+#pragma once
+
 #include "renderer.h"
 
 #define VMA_IMPLEMENTATION

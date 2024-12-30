@@ -1,49 +1,42 @@
 #pragma once
 
+#include <vector>
+#include <array>
+#include <unordered_map>
+
 #include <tinyobjloader/tiny_obj_loader.h>
 #include <vulkan/vulkan.h>
 #include <VMA/vk_mem_alloc.h>
-
-#include <vector>
-#include <array>
 
 #include "vu.h"
 
 namespace vu {
 
+	class Renderer;
+
 	class Mesh {
 	public:
-		void Load(
-			const std::string &modelPath,
-			VmaAllocator      &allocator,
-			VkDevice          &device,
-			VkPhysicalDevice  &physicalDevice,
-			VkSurfaceKHR      &surface,
-			VkCommandPool     &copyCommandPool,
-			VkQueue           &copySubmitQueue
-		);
-		void Destroy();
+		Mesh(const RendererInfo &rendererInfo, const std::string &modelPath) : m_modelPath(modelPath) {
+			LoadModel();
+			CreateVertexBuffer(rendererInfo);
+			CreateIndexBuffer(rendererInfo);
+		};
+
+		void Destroy(const RendererInfo &rendererInfo);
 
 		void BindAndRender(VkCommandBuffer commandBuffer);
 
-		vu::Vertex   *GetVertices() { return m_vertices.data(); }
-		uint32_t *GetIndices() { return m_indices.data(); }
+		Vertex   *GetVertices() { return m_vertices.data(); }
+		uint32_t *GetIndices()  { return m_indices.data(); }
 
 	private:
 		void LoadModel();
-		void CreateVertexBuffer();
-		void CreateIndexBuffer();
+		void CreateVertexBuffer(const RendererInfo &rendererInfo);
+		void CreateIndexBuffer(const RendererInfo &rendererInfo);
 
-		VmaAllocator     m_allocator;
-		VkDevice         m_device;
-		VkPhysicalDevice m_physicalDevice;
-		VkSurfaceKHR     m_surface;
-		VkCommandPool    m_copyCommandPool;
-		VkQueue          m_copySubmitQueue;
-
-		std::string           m_modelPath;
-		std::vector<vu::Vertex>   m_vertices;
-		std::vector<uint32_t> m_indices;
+		std::string             m_modelPath;
+		std::vector<Vertex> m_vertices;
+		std::vector<uint32_t>   m_indices;
 
 		VkBuffer          m_vertexBuffer;
 		VmaAllocation     m_vertexAllocation;
