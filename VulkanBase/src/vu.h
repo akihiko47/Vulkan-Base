@@ -56,6 +56,11 @@ namespace vu {
 		glm::mat4 model;
 	};
 
+	struct MaterialUbo {
+		glm::vec4 ColDiffuse;
+		glm::vec4 ColSpecular;
+	};
+
 	struct VPubo {
 		glm::mat4 view;
 		glm::mat4 proj;

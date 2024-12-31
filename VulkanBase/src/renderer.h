@@ -146,6 +146,10 @@ namespace vu {
 		// image resouses (should be moved)
 		void CreateTextureImages();
 
+		// materials ubo creation (should be moved)
+		void CreateMaterialslBuffers();
+		void SetMaterialsBuffers();
+
 		// samplers
 		void CreateTextureSampler();
 		
@@ -221,6 +225,14 @@ namespace vu {
 
 		vu::Image *image1;
 		vu::Image *image2;
+
+		std::vector<VkBuffer>          uniformBuffersMat1;
+		std::vector<VmaAllocation>     uniformAllocationsMat1;
+		std::vector<VmaAllocationInfo> uniformAllocationInfosMat1;
+
+		std::vector<VkBuffer>          uniformBuffersMat2;
+		std::vector<VmaAllocation>     uniformAllocationsMat2;
+		std::vector<VmaAllocationInfo> uniformAllocationInfosMat2;
 
 		VkSampler textureSampler;
 

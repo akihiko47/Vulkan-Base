@@ -33,6 +33,9 @@ void Renderer::InitVulkan() {
 	CreateTextureSampler();
 	CreateShaderModules();
 
+	CreateMaterialslBuffers();
+	SetMaterialsBuffers();
+
 	CreateDescriptorSetLayout();
 	CreateUniformBuffers();
 	CreateDescriptorPool();
@@ -649,14 +652,21 @@ void Renderer::CreateDescriptorSetLayout() {
 
 	// SET 1
 	// material specific bindings
+	VkDescriptorSetLayoutBinding uboLayoutBindingLocal{};
+	uboLayoutBindingLocal.binding = 0;
+	uboLayoutBindingLocal.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	uboLayoutBindingLocal.descriptorCount = 1;
+	uboLayoutBindingLocal.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+	uboLayoutBindingLocal.pImmutableSamplers = nullptr;
+
 	VkDescriptorSetLayoutBinding samplerLayoutBinding{};
-	samplerLayoutBinding.binding = 0;
+	samplerLayoutBinding.binding = 1;
 	samplerLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 	samplerLayoutBinding.descriptorCount = 1;
 	samplerLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 	samplerLayoutBinding.pImmutableSamplers = nullptr;
 
-	std::array<VkDescriptorSetLayoutBinding, 1> bindingsLocal = {samplerLayoutBinding};
+	std::array<VkDescriptorSetLayoutBinding, 2> bindingsLocal = {uboLayoutBindingLocal, samplerLayoutBinding};
 	VkDescriptorSetLayoutCreateInfo layoutInfoLocal{};
 	layoutInfoLocal.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
 	layoutInfoLocal.bindingCount = static_cast<uint32_t>(bindingsLocal.size());
@@ -1100,7 +1110,7 @@ void Renderer::CreateGraphicsPipeline() {
 void Renderer::CreateDescriptorPool() {
 	std::array<VkDescriptorPoolSize, 2> poolSizes{};
 	poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	poolSizes[0].descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
+	poolSizes[0].descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT * 4);
 	poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 	poolSizes[1].descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT * 2);
 
@@ -1108,7 +1118,7 @@ void Renderer::CreateDescriptorPool() {
 	poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
 	poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
 	poolInfo.pPoolSizes = poolSizes.data();
-	poolInfo.maxSets = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT * 3);
+	poolInfo.maxSets = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT * 6);  // 2 global + 4 global
 
 	if (vkCreateDescriptorPool(m_device, &poolInfo, nullptr, &descriptorPool) != VK_SUCCESS) {
 		throw std::runtime_error("failed to create descriptor pool!");
@@ -1137,11 +1147,50 @@ void Renderer::CreateUniformBuffers() {
 	}
 }
 
+void Renderer::CreateMaterialslBuffers() {
+	VkDeviceSize bufferSize = sizeof(vu::MaterialUbo);
+
+	uniformBuffersMat1.resize(MAX_FRAMES_IN_FLIGHT);
+	uniformAllocationsMat1.resize(MAX_FRAMES_IN_FLIGHT);
+	uniformAllocationInfosMat1.resize(MAX_FRAMES_IN_FLIGHT);
+
+	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+
+		vu::createBuffer(
+			m_physicalDevice,
+			m_allocator,
+			m_surface,
+			bufferSize,
+			VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+			VMA_MEMORY_USAGE_AUTO,
+			VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT,
+			uniformBuffersMat1[i], uniformAllocationsMat1[i], uniformAllocationInfosMat1[i]
+		);
+	}
+
+	uniformBuffersMat2.resize(MAX_FRAMES_IN_FLIGHT);
+	uniformAllocationsMat2.resize(MAX_FRAMES_IN_FLIGHT);
+	uniformAllocationInfosMat2.resize(MAX_FRAMES_IN_FLIGHT);
+
+	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+
+		vu::createBuffer(
+			m_physicalDevice,
+			m_allocator,
+			m_surface,
+			bufferSize,
+			VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+			VMA_MEMORY_USAGE_AUTO,
+			VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT,
+			uniformBuffersMat2[i], uniformAllocationsMat2[i], uniformAllocationInfosMat2[i]
+		);
+	}
+}
+
 void Renderer::CreateDescriptorSets() {
 	// allocate descriptor sets
 	std::vector<VkDescriptorSetLayout> layoutsGlobal{MAX_FRAMES_IN_FLIGHT, descriptorSetLayoutGlobal};
-	std::vector<VkDescriptorSetLayout> layoutsMat1{MAX_FRAMES_IN_FLIGHT, descriptorSetLayoutLocal};
-	std::vector<VkDescriptorSetLayout> layoutsMat2{MAX_FRAMES_IN_FLIGHT, descriptorSetLayoutLocal};
+	std::vector<VkDescriptorSetLayout> layoutsLocal{MAX_FRAMES_IN_FLIGHT, descriptorSetLayoutLocal};
 
 	// global
 	VkDescriptorSetAllocateInfo allocInfo{};
@@ -1159,7 +1208,7 @@ void Renderer::CreateDescriptorSets() {
 	allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
 	allocInfo.descriptorPool = descriptorPool;
 	allocInfo.descriptorSetCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
-	allocInfo.pSetLayouts = layoutsMat1.data();
+	allocInfo.pSetLayouts = layoutsLocal.data();
 
 	descriptorSetsMat1.resize(MAX_FRAMES_IN_FLIGHT);
 	if (vkAllocateDescriptorSets(m_device, &allocInfo, descriptorSetsMat1.data()) != VK_SUCCESS) {
@@ -1170,7 +1219,7 @@ void Renderer::CreateDescriptorSets() {
 	allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
 	allocInfo.descriptorPool = descriptorPool;
 	allocInfo.descriptorSetCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
-	allocInfo.pSetLayouts = layoutsMat2.data();
+	allocInfo.pSetLayouts = layoutsLocal.data();
 
 	descriptorSetsMat2.resize(MAX_FRAMES_IN_FLIGHT);
 	if (vkAllocateDescriptorSets(m_device, &allocInfo, descriptorSetsMat2.data()) != VK_SUCCESS) {
@@ -1195,6 +1244,16 @@ void Renderer::CreateDescriptorSets() {
 		imageInfo2.imageView = image2->GetImageView();
 		imageInfo2.sampler = textureSampler;
 
+		VkDescriptorBufferInfo bufferInfoMat1{};
+		bufferInfoMat1.buffer = uniformBuffersMat1[i];
+		bufferInfoMat1.offset = 0;
+		bufferInfoMat1.range = sizeof(vu::MaterialUbo);
+
+		VkDescriptorBufferInfo bufferInfoMat2{};
+		bufferInfoMat2.buffer = uniformBuffersMat2[i];
+		bufferInfoMat2.offset = 0;
+		bufferInfoMat2.range = sizeof(vu::MaterialUbo);
+
 		// global descriptor (VP matrix)
 		std::array<VkWriteDescriptorSet, 1> descriptorWritesGlobal{};
 		descriptorWritesGlobal[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -1208,26 +1267,42 @@ void Renderer::CreateDescriptorSets() {
 		vkUpdateDescriptorSets(m_device, static_cast<uint32_t>(descriptorWritesGlobal.size()), descriptorWritesGlobal.data(), 0, nullptr);
 
 		// local descriptor (images and such) material 1
-		std::array<VkWriteDescriptorSet, 1> descriptorWritesLocal1{};
+		std::array<VkWriteDescriptorSet, 2> descriptorWritesLocal1{};
 		descriptorWritesLocal1[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 		descriptorWritesLocal1[0].dstSet = descriptorSetsMat1[i];
 		descriptorWritesLocal1[0].dstBinding = 0;
 		descriptorWritesLocal1[0].dstArrayElement = 0;
-		descriptorWritesLocal1[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+		descriptorWritesLocal1[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 		descriptorWritesLocal1[0].descriptorCount = 1;
-		descriptorWritesLocal1[0].pImageInfo = &imageInfo1;
+		descriptorWritesLocal1[0].pBufferInfo = &bufferInfoMat1;
+
+		descriptorWritesLocal1[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		descriptorWritesLocal1[1].dstSet = descriptorSetsMat1[i];
+		descriptorWritesLocal1[1].dstBinding = 1;
+		descriptorWritesLocal1[1].dstArrayElement = 0;
+		descriptorWritesLocal1[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+		descriptorWritesLocal1[1].descriptorCount = 1;
+		descriptorWritesLocal1[1].pImageInfo = &imageInfo1;
 
 		vkUpdateDescriptorSets(m_device, static_cast<uint32_t>(descriptorWritesLocal1.size()), descriptorWritesLocal1.data(), 0, nullptr);
 
 		// local descriptor (images and such) material 1
-		std::array<VkWriteDescriptorSet, 1> descriptorWritesLocal2{};
+		std::array<VkWriteDescriptorSet, 2> descriptorWritesLocal2{};
 		descriptorWritesLocal2[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 		descriptorWritesLocal2[0].dstSet = descriptorSetsMat2[i];
 		descriptorWritesLocal2[0].dstBinding = 0;
 		descriptorWritesLocal2[0].dstArrayElement = 0;
-		descriptorWritesLocal2[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+		descriptorWritesLocal2[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 		descriptorWritesLocal2[0].descriptorCount = 1;
-		descriptorWritesLocal2[0].pImageInfo = &imageInfo2;
+		descriptorWritesLocal2[0].pBufferInfo = &bufferInfoMat2;
+
+		descriptorWritesLocal2[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		descriptorWritesLocal2[1].dstSet = descriptorSetsMat2[i];
+		descriptorWritesLocal2[1].dstBinding = 1;
+		descriptorWritesLocal2[1].dstArrayElement = 0;
+		descriptorWritesLocal2[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+		descriptorWritesLocal2[1].descriptorCount = 1;
+		descriptorWritesLocal2[1].pImageInfo = &imageInfo2;
 
 		vkUpdateDescriptorSets(m_device, static_cast<uint32_t>(descriptorWritesLocal2.size()), descriptorWritesLocal2.data(), 0, nullptr);
 	}
@@ -1470,6 +1545,24 @@ void Renderer::SetGlobalUniformBuffers(uint32_t currentImage) {
 	ubo.proj[1][1] *= -1;
 
 	memcpy(uniformAllocationInfos[currentImage].pMappedData, &ubo, sizeof(ubo));
+}
+
+void Renderer::SetMaterialsBuffers() {
+	vu::MaterialUbo matUbo1;
+	matUbo1.ColDiffuse = glm::vec4(1.0, 0.0, 0.0, 1.0);
+	matUbo1.ColSpecular = glm::vec4(1.0, 1.0, 0.0, 1.0);
+
+	for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+		memcpy(uniformAllocationInfosMat1[i].pMappedData, &matUbo1, sizeof(matUbo1));
+	}
+	
+	vu::MaterialUbo matUbo2;
+	matUbo2.ColDiffuse = glm::vec4(0.0, 0.0, 1.0, 1.0);
+	matUbo2.ColSpecular = glm::vec4(0.5, 0.8, 1.0, 1.0);
+
+	for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+		memcpy(uniformAllocationInfosMat2[i].pMappedData, &matUbo2, sizeof(matUbo2));
+	}
 }
 
 void Renderer::SetGlobalPushConstants(VkCommandBuffer commandBuffer) {

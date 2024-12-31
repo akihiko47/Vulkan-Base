@@ -1,6 +1,11 @@
 #version 450
 
-layout(set = 1, binding = 0) uniform sampler2D texSampler;
+layout(set = 1, binding = 0) uniform UniformBufferObject {
+    vec4 ColDiff;
+    vec4 ColSpec;
+};
+
+layout(set = 1, binding = 1) uniform sampler2D texSampler;
 
 layout(push_constant) uniform pc {
     layout(offset = 64)
@@ -44,8 +49,10 @@ void main() {
     float atten = 1.0 / dot(lightPos - worldPos, lightPos - worldPos);
 
     // Blinn-Phong model
-    vec3 kd = albedo.rgb;
-    vec3 ks = lightCol;
+    // vec3 kd = albedo.rgb;
+    vec3 kd = ColDiff.rgb;
+    // vec3 ks = lightCol;
+    vec3 ks = ColSpec.rgb;
     vec3 ka = vec3(0.17, 0.12, 0.19) * 0.5;
     float q = 500.0;
 
